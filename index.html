@@ -941,33 +941,62 @@ window.OS = OS;
    The Horos public-router build, told as the directive trail it actually
    was this week. Chains computed live at seed time so it verifies honestly.
    Branches are illustrative of the real work; readers can verify the repo. */
-async function seedIfNeeded() {
-  if (state.local.seeded) return;
-  try { const ex = await storage.list("proj:"); if (ex && ex.keys && ex.keys.length) { state.local.seeded = true; await saveLocal(); return; } } catch (e) {}
-  const seed = {
-    title: "Horos → free public router",
-    repo: "https://github.com/holeyfield33-art/horos",
-    directives: [
-      { prompt: "Replace the placeholder signing seed in mcp/router_runner.mjs. Read HOROS_KEY_SEED from env, require 64 hex chars, fail the runner if missing. The server must refuse to sign with a default identity.",
-        why: "The live service was signing every receipt with an all-zeros key — a signature that proves nothing. This is the load-bearing fix: no real key, no real product.",
-        branch: "main" },
-      { prompt: "Add an unauthenticated POST /public/route to the Starlette app, carved out of the bearer wall like /healthz. Accept a public repo_url (primary) or a graph (fallback) plus a task; clone tokenless, generate, route, sign, return {summary, receipt}.",
-        why: "The whole point of a public tool: a stranger pastes a repo and gets a signed receipt. GITHUB_TOKEN gated OFF here so anonymous callers can never reach private repos.",
-        branch: "main" },
-      { prompt: "Lock CORS on /public/route to the GitHub Pages origin only. Handle OPTIONS preflight. Do not relax CORS on /mcp or anything else.",
-        why: "The browser UI lives on a different origin than the API; without an exact allow-origin match the calls fail. Everything else stays behind the bearer wall.",
-        branch: "main" },
-      { prompt: "Classify RouteError into actionable 4xx messages instead of a bare 422. no_entrypoints / empty_selection → a clear 'try a more specific task or confirm the repo has analyzable files' message. Surface the error text in the Pages UI.",
-        why: "A valid public repo that routes empty was returning a naked 422 with no reason. A public endpoint that rejects input must say why — fail closed, but fail legibly.",
-        branch: "claude/horos-public-route-422-x2ipgl" },
-    ],
-  };
-  const p = newProject(seed.title, seed.repo); p.seed = true;
-  for (const d of seed.directives) await appendDirective(p, d.prompt, d.why, d.branch);
+const HOROS_SEED = {
+  title: "Horos → free public router",
+  repo: "https://github.com/holeyfield33-art/horos",
+  directives: [
+    { prompt: "Replace the placeholder signing seed in mcp/router_runner.mjs. Read HOROS_KEY_SEED from env, require 64 hex chars, fail the runner if missing. The server must refuse to sign with a default identity.",
+      why: "The live service was signing every receipt with an all-zeros key — a signature that proves nothing. This is the load-bearing fix: no real key, no real product.",
+      branch: "main" },
+    { prompt: "Add an unauthenticated POST /public/route to the Starlette app, carved out of the bearer wall like /healthz. Accept a public repo_url (primary) or a graph (fallback) plus a task; clone tokenless, generate, route, sign, return {summary, receipt}.",
+      why: "The whole point of a public tool: a stranger pastes a repo and gets a signed receipt. GITHUB_TOKEN gated OFF here so anonymous callers can never reach private repos.",
+      branch: "main" },
+    { prompt: "Lock CORS on /public/route to the GitHub Pages origin only. Handle OPTIONS preflight. Do not relax CORS on /mcp or anything else.",
+      why: "The browser UI lives on a different origin than the API; without an exact allow-origin match the calls fail. Everything else stays behind the bearer wall.",
+      branch: "main" },
+    { prompt: "Classify RouteError into actionable 4xx messages instead of a bare 422. no_entrypoints / empty_selection → a clear 'try a more specific task or confirm the repo has analyzable files' message. Surface the error text in the Pages UI.",
+      why: "A valid public repo that routes empty was returning a naked 422 with no reason. A public endpoint that rejects input must say why — fail closed, but fail legibly.",
+      branch: "claude/horos-public-route-422-x2ipgl" },
+  ],
+};
+// The app's own directive trail — this file, told as the ledger it records.
+const META_SEED = {
+  title: "OPEN SOURCE → navigation, guarded delete, Git guide",
+  repo: "https://github.com/holeyfield33-art/open-source",
+  directives: [
+    { prompt: "Make the wordmark a keyboard-accessible Home control (goFeed), mark the open project with an .active border in the rail, and add Alt+ArrowLeft back plus j/k directive jumps — all respecting the existing typing guard.",
+      why: "Location was invisible once inside a project and there was no cheap way home. Navigation should never be a guess; the rail should always say where you are.",
+      branch: "claude/open-source-nav-delete-guide-tl13q5" },
+    { prompt: "Add permanent project deletion, guarded so it can't be a one-click accident: require typing the exact project name to enable Delete, nudge toward reversible Archive, and only offer it on local/private projects — never the seed or published records.",
+      why: "localStorage is the only copy — no server, no undo. Test projects piled up and looked messy, but a bare 'are you sure' on irreversible loss isn't enough of a gate.",
+      branch: "claude/open-source-nav-delete-guide-tl13q5" },
+    { prompt: "Add a 'Git commands — operating a repo properly' section to the in-app Guide, grouped into daily loop, branches, backtracking, connecting a repo, and GitHub Pages, in the guide's existing plain style.",
+      why: "The app maps directives to branches but never taught the commands that actually make them. Close the loop between the ledger and the real Git work behind it.",
+      branch: "claude/open-source-nav-delete-guide-tl13q5" },
+  ],
+};
+async function publishSeed(spec) {
+  const p = newProject(spec.title, spec.repo); p.seed = true;
+  for (const d of spec.directives) await appendDirective(p, d.prompt, d.why, d.branch);
   try { await publishProject(p); } catch (e) { console.error("seed publish failed:", e); }
+  // Seeds live only in the published feed, never as an editable local draft.
   delete state.local.projects[p.id];
   state.local.order = state.local.order.filter(id => id !== p.id);
-  state.local.seeded = true; await saveLocal();
+}
+async function seedIfNeeded() {
+  // First-run seed of the Horos project — skipped if this browser already has published records.
+  if (!state.local.seeded) {
+    let hasKeys = false;
+    try { const ex = await storage.list("proj:"); hasKeys = !!(ex && ex.keys && ex.keys.length); } catch (e) {}
+    if (!hasKeys) await publishSeed(HOROS_SEED);
+    state.local.seeded = true; await saveLocal();
+  }
+  // Meta seed: the directive trail behind this app's own navigation/delete/guide work.
+  // Guarded independently so existing installs pick it up once.
+  if (!state.local.metaSeeded) {
+    await publishSeed(META_SEED);
+    state.local.metaSeeded = true; await saveLocal();
+  }
 }
 
 /* ---------------- boot ---------------- */

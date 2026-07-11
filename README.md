@@ -6,6 +6,8 @@ If you code by directing an AI, your real history isn't the commits — it's the
 
 Every directive links to a real GitHub branch and can be verified live against the public API — green check, real commit, no trust required. Add margin notes to any node or open the Notebook to write and learn, not just log. Tag directives by phase, search everything you've ever written, and export the whole workspace anytime.
 
+Navigate fast: the wordmark is Home, the rail always highlights the project you're in, and `Esc` / `Alt+←` step back to the ledger while `j` / `k` jump between directives. Manage projects two ways — **Archive** hides a project reversibly, and **Delete** removes it permanently (guarded: you type the project's name to confirm, because localStorage is the only copy). The in-app **Guide** covers branch verification, what stays private, and a full set of Git commands for operating a repo behind your directives.
+
 It's a single static file. Drop it in any repo's /docs, enable Pages, and it auto-pins to that repo. No account, no backend, no build step — your workspace lives in your browser and nothing leaves it unless you publish.
 
 How the trust works
