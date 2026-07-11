@@ -112,6 +112,14 @@ section.pane{flex:1; min-width:0; padding:24px 32px 120px}
 .hint{font-family:var(--sans); font-size:11px; color:var(--slate); margin-top:6px}
 
 /* margin notes + notebook (private, unchained) */
+.bloat-warn{border:1px solid var(--amber); background:#F6F1E7; color:#8F4E16; font-family:var(--sans); font-size:12.5px; font-weight:600; padding:9px 13px; border-radius:2px; margin:14px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+.bloat-warn button{font-size:11px; padding:4px 10px}
+.graph-wrap{background:var(--card); border:1px solid var(--line); border-radius:2px; padding:16px; margin-top:16px; overflow-x:auto}
+.graph-legend{display:flex; gap:14px; flex-wrap:wrap; font-family:var(--sans); font-size:10.5px; color:var(--slate); margin-bottom:10px}
+.graph-legend span{display:flex; align-items:center; gap:5px}
+.graph-legend i{width:10px; height:10px; border-radius:2px; display:inline-block}
+.gph-node:hover{cursor:pointer}
+.archived-tag{font-family:var(--sans); font-size:10px; font-weight:700; letter-spacing:.08em; color:var(--slate); border:1px solid var(--line); padding:1px 6px; border-radius:2px}
 .checklist{margin-top:26px; border:1px solid var(--line); background:var(--card); border-radius:2px; padding:16px 18px}
 .checklist h4{font-family:var(--sans); font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--slate); margin-bottom:4px}
 .checklist .cl-sub{font-family:var(--sans); font-size:11px; color:var(--slate); margin-bottom:12px}
@@ -161,6 +169,7 @@ section.pane{flex:1; min-width:0; padding:24px 32px 120px}
       <div class="tagline">Every directive is a node. Map it to a branch, chain the reasoning — the ledger remembers why.</div>
     </div>
     <div class="spacer"></div>
+    <button class="ghost" style="margin-right:10px" onclick="OS.guide()">Guide</button>
     <div class="handle-chip"><span class="eyebrow">Author</span>
       <input id="handle" maxlength="24" spellcheck="false" aria-label="Your handle"></div>
   </header>
@@ -421,7 +430,9 @@ function closeModal() { $("modal-root").innerHTML = ""; }
 function renderRail() {
   const pubs = state.feed;
   const locals = state.local.order.map(id => state.local.projects[id]).filter(Boolean);
-  let html = `<div class="rail-head"><span class="eyebrow">Public ledger</span>
+  const activeLocals = locals.filter(p => !p.archived);
+  const archivedLocals = locals.filter(p => p.archived);
+  let html = `<div class="rail-head"><span class="eyebrow">Published (this browser)</span>
     <button class="ghost" style="padding:3px 8px;font-size:10px" onclick="OS.refresh()">Refresh</button></div>`;
   if (!pubs.length) html += `<div class="empty">No projects published yet. Start one and publish to seed the ledger.</div>`;
   for (const r of pubs) {
@@ -437,13 +448,21 @@ function renderRail() {
   }
   html += `<div class="rail-head" style="margin-top:22px"><span class="eyebrow">Your projects</span></div>`;
   html += `<button class="primary" style="width:100%;margin-bottom:10px" onclick="OS.startProject()">+ New project</button>`;
-  if (!locals.length) html += `<div class="empty">Private until you publish. Connect a repo, log directives, map each to a branch.</div>`;
-  for (const p of locals) {
+  if (!activeLocals.length) html += `<div class="empty">Private until you publish. Connect a repo, log directives, map each to a branch.</div>`;
+  for (const p of activeLocals) {
     html += `<button class="proj-card local" onclick="OS.openLocal('${p.id}')">
       <div class="t">${esc(p.title)}</div>
       <div class="m"><span>${p.directives.length} directive${p.directives.length !== 1 ? "s" : ""}</span>
       ${p.forkOf ? `<span class="badge fork">${p.forkOf.mode === "plan" ? "BRANCH" : "ADAPTED"}</span>` : ""}
       ${p.publishedAt ? '<span style="color:var(--verified)">published</span>' : "<span>draft</span>"}</div></button>`;
+  }
+  if (archivedLocals.length) {
+    html += `<div class="rail-head" style="margin-top:20px"><span class="eyebrow" style="color:var(--slate)">Archived (${archivedLocals.length})</span></div>`;
+    for (const p of archivedLocals) {
+      html += `<button class="proj-card local" style="opacity:.6" onclick="OS.openLocal('${p.id}')">
+        <div class="t">${esc(p.title)} <span class="archived-tag">ARCHIVED</span></div>
+        <div class="m"><span>${p.directives.length} directive${p.directives.length !== 1 ? "s" : ""}</span></div></button>`;
+    }
   }
   $("rail").innerHTML = html;
 }
@@ -504,10 +523,12 @@ function renderPane() {
       <div class="toggle" role="tablist">
         <button class="${state.paneMode === "directives" ? "on" : ""}" onclick="OS.setPane('directives')">Directives</button>
         <button class="${state.paneMode === "chain" ? "on" : ""}" onclick="OS.setPane('chain')">Chain</button>
+        <button class="${state.paneMode === "graph" ? "on" : ""}" onclick="OS.setPane('graph')">Graph</button>
         ${!isPub ? `<button class="${state.paneMode === "notebook" ? "on" : ""}" onclick="OS.setPane('notebook')">Notebook</button>` : ""}
       </div>
       ${!isPub ? `<button class="ghost" onclick="OS.editRepo()">${p.repoUrl ? "Change repo" : "Connect repo"}</button>` : ""}
       ${!isPub && p.directives.length ? `<button class="primary" onclick="OS.confirmPublish()">Publish</button>` : ""}
+      ${!isPub ? `<button class="ghost" onclick="OS.archive('${p.id}')">${p.archived ? "Unarchive" : "Archive"}</button>` : ""}
       ${isPub ? `<button class="amber" onclick="OS.doForkProject('${p.id}')">Adapt this project →</button>` : ""}
     </div></div>`;
 
@@ -527,6 +548,12 @@ function renderPane() {
 
   if (p.ancestry && p.ancestry.length && !isPub) html += `<div class="dir-target" style="margin:12px 0;font-style:italic">${p.ancestry.length} inherited directive${p.ancestry.length > 1 ? "s" : ""} carried in as lineage — your new directives chain onto the fork point.</div>`;
 
+  if (!isPub && p.directives.length >= 15) {
+    html += `<div class="bloat-warn">⚠ ${p.directives.length} directives — this project is getting long.
+      Consider forking a fresh branch from a recent directive to keep each chain focused.
+      <button class="ghost" onclick="OS.setPane('chain')">see the chain</button></div>`;
+  }
+
   if (!isPub && state.paneMode === "notebook") {
     html += `<div class="notebook" style="margin-top:16px">
       <div class="dir-meta" style="margin-bottom:8px"><span class="dir-n">Notebook</span><span class="private-tag">PRIVATE — never published, never chained</span></div>
@@ -536,6 +563,35 @@ function renderPane() {
     pane.innerHTML = html;
     const nb = $("nb-text");
     if (nb) { let t; nb.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => OS.saveJournal(nb.value), 500); }); }
+    return;
+  }
+
+  if (state.paneMode === "graph") {
+    const PHASE_COLOR = { planning: "#B5651D", build: "#1F5E3A", polish: "#3A6B8A", ship: "#8A2D3B", "": "#59665E" };
+    const rowH = 62, padY = 30, cx = 34, w = 680;
+    const H = padY * 2 + Math.max(0, p.directives.length - 1) * rowH + (p.directives.length ? 0 : 20);
+    let svg = `<svg viewBox="0 0 ${w} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Directive timeline">`;
+    // connecting spine
+    if (p.directives.length > 1) svg += `<line x1="${cx}" y1="${padY}" x2="${cx}" y2="${padY + (p.directives.length - 1) * rowH}" stroke="var(--line)" stroke-width="2"/>`;
+    p.directives.forEach((d, i) => {
+      const y = padY + i * rowH;
+      const color = PHASE_COLOR[d.phase || ""] || PHASE_COLOR[""];
+      const label = (d.prompt || "").slice(0, 62).replace(/</g, "&lt;");
+      const branch = d.branch ? "⎇ " + esc(d.branch) : "no branch";
+      svg += `<g class="gph-node" onclick="OS.jumpDirective('${d.chainHash.slice(0, 12)}')">
+        <circle cx="${cx}" cy="${y}" r="9" fill="${color}"/>
+        <circle cx="${cx}" cy="${y}" r="4" fill="var(--card)"/>
+        <text x="${cx + 22}" y="${y - 4}" font-family="var(--sans)" font-size="13" font-weight="600" fill="var(--ink)">${i + 1}. ${esc(label)}</text>
+        <text x="${cx + 22}" y="${y + 13}" font-family="var(--mono)" font-size="10.5" fill="${color}">${d.phase ? d.phase.toUpperCase() + " · " : ""}${branch}</text>
+      </g>`;
+    });
+    svg += `</svg>`;
+    const usedPhases = [...new Set(p.directives.map(d => d.phase || ""))];
+    html += `<div class="graph-wrap">
+      <div class="graph-legend">${["planning","build","polish","ship"].filter(ph => usedPhases.includes(ph)).map(ph => `<span><i style="background:${PHASE_COLOR[ph]}"></i>${ph}</span>`).join("")}${usedPhases.includes("") ? `<span><i style="background:${PHASE_COLOR[""]}"></i>unphased</span>` : ""}</div>
+      ${p.directives.length ? svg : '<div class="empty">No directives yet — the timeline fills as you chain them.</div>'}
+    </div>`;
+    pane.innerHTML = html;
     return;
   }
 
@@ -649,6 +705,41 @@ const OS = {
     p.checklist = p.checklist || {};
     p.checklist[i] = !p.checklist[i];
     saveLocal(); renderPane();
+  },
+  archive: (id) => {
+    const p = state.local.projects[id]; if (!p) return;
+    p.archived = !p.archived; saveLocal();
+    toast(p.archived ? "Archived — hidden from the main list, not deleted" : "Unarchived");
+    renderAll();
+  },
+  jumpDirective: (shortHash) => {
+    state.paneMode = "directives"; renderPane();
+    setTimeout(() => { const el = document.getElementById("d-" + shortHash); if (el) el.scrollIntoView({ block: "center", behavior: "smooth" }); }, 40);
+  },
+  guide: () => {
+    openModal(`<h3>Guide</h3>
+      <div style="max-height:60vh;overflow-y:auto;padding-right:6px">
+
+      <p style="font-weight:700;margin-top:4px">What do I do when a branch won't verify?</p>
+      <p>A red <strong>✕ branch not found</strong> means the check worked and the branch genuinely isn't on GitHub right now. Walk it in order:</p>
+      <p>1. <strong>Typo?</strong> The branch name is case- and slash-sensitive. <span class="mono">Fix/Auth</span> ≠ <span class="mono">fix/auth</span>. Re-log the directive with the exact name.<br>
+      2. <strong>Never pushed?</strong> A local branch that only exists on your machine can't be verified. Push it, then verify.<br>
+      3. <strong>Deleted or merged-and-pruned?</strong> If the branch was merged and deleted, it's gone from GitHub — that's why directive 4's <span class="mono">claude/…-422</span> shows not-found. Point the directive at the commit's permanent home instead: use the <strong>merge commit</strong> or the branch it merged into (usually <span class="mono">main</span>), since the work still lives there.<br>
+      4. <strong>Private or renamed repo?</strong> Verification is public-API only. A private repo reads as "repo not found." Make it public, or accept that private-repo branches stay unverified.<br>
+      5. <strong>Rate-limited?</strong> If the badge says "rate limit hit," GitHub caps anonymous checks at 60/hour per IP. Wait for the reset shown and re-verify.</p>
+      <p class="dim" style="font-style:italic">The honest rule: an unverifiable branch doesn't weaken the chain — the signature still proves your trail wasn't altered. Branch verification is the extra layer that ties a directive to <em>public</em> work. No public branch, no green check, and that's fine for private or squashed history.</p>
+
+      <p style="font-weight:700;margin-top:14px">Where does my work live? Can others see it?</p>
+      <p>Everything is stored in <strong>this browser only</strong> (localStorage). Your projects, notes, journal, and checklists never leave your device. Other people opening this page see only the built-in seed project — never yours, and you never see theirs. "Published" here means "saved to this browser's published section," not shared to a server. Use <strong>Export all</strong> regularly; clearing your browser data wipes everything.</p>
+
+      <p style="font-weight:700;margin-top:14px">Branch the plan vs adapt the project?</p>
+      <p><strong>Branch the plan</strong> forks from one directive to try a different approach from that point. <strong>Adapt the project</strong> clones the whole trail to steer it your way. Both inherit signed lineage showing what they started from.</p>
+
+      <p style="font-weight:700;margin-top:14px">What's private vs public when I publish?</p>
+      <p>Chained + published: prompt, reasoning, branch, hashes, signature. Never published: margin notes, the Notebook, and the ship checklist — private by construction, stripped automatically.</p>
+
+      </div>
+      <div class="btns"><button class="primary" onclick="OS.closeModal()">Got it</button></div>`);
   },
   search: (q) => { state.search = q; if (state.view === "feed") { const pos = document.activeElement === $("search-in"); renderPane(); if (pos) { const el = $("search-in"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } } } },
   exportAll: () => {
