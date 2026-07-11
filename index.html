@@ -28,6 +28,9 @@ button.amber{background:var(--amber); border-color:var(--amber); color:#fff}
 button.amber:hover{background:#8F4E16}
 button.ghost{border-color:var(--line); color:var(--slate)}
 button.ghost:hover{background:var(--wash); color:var(--ink)}
+button.danger{border-color:var(--line); color:var(--danger)}
+button.danger:hover{background:var(--danger); border-color:var(--danger); color:#fff}
+button.danger:disabled:hover{background:transparent; color:var(--danger)}
 button:disabled{opacity:.45; cursor:not-allowed}
 input,textarea{font-family:var(--serif); font-size:15px; color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:2px; padding:9px 11px; width:100%}
 textarea{resize:vertical; line-height:1.5}
@@ -535,6 +538,7 @@ function renderPane() {
       ${!isPub ? `<button class="ghost" onclick="OS.editRepo()">${p.repoUrl ? "Change repo" : "Connect repo"}</button>` : ""}
       ${!isPub && p.directives.length ? `<button class="primary" onclick="OS.confirmPublish()">Publish</button>` : ""}
       ${!isPub ? `<button class="ghost" onclick="OS.archive('${p.id}')">${p.archived ? "Unarchive" : "Archive"}</button>` : ""}
+      ${!isPub ? `<button class="danger" onclick="OS.confirmDelete('${p.id}')">Delete</button>` : ""}
       ${isPub ? `<button class="amber" onclick="OS.doForkProject('${p.id}')">Adapt this project →</button>` : ""}
     </div></div>`;
 
@@ -717,6 +721,37 @@ const OS = {
     p.archived = !p.archived; saveLocal();
     toast(p.archived ? "Archived — hidden from the main list, not deleted" : "Unarchived");
     renderAll();
+  },
+  // Guarded, permanent deletion of a LOCAL project. Never offered on the seed or
+  // on published records (those aren't in state.local.projects and have no delete UI).
+  confirmDelete: (id) => {
+    const p = state.local.projects[id]; if (!p) return;
+    const pubNote = p.publishedAt
+      ? `<p class="dim" style="font-size:12px;font-style:italic">Heads up: you already published this project. Deleting this local draft does <strong>not</strong> unpublish the sealed record in your published list — it only removes your editable copy.</p>`
+      : "";
+    openModal(`<h3>Delete “${esc(p.title)}”?</h3>
+      <p>Delete permanently? This can't be undone — there's no server backup. localStorage is the only copy.</p>
+      <div class="bloat-warn" style="margin:12px 0">If you just want it out of the way, <strong>Archive instead</strong> (reversible).
+        <button class="ghost" onclick="OS.archive('${id}');OS.closeModal()">Archive</button></div>
+      ${pubNote}
+      <div class="field" style="margin-top:12px"><label class="eyebrow">To confirm, type the project name exactly</label>
+        <input id="del-match" spellcheck="false" autocomplete="off" placeholder="${esc(p.title)}" oninput="OS.delGuard('${id}', this.value)"></div>
+      <div class="btns"><button class="ghost" onclick="OS.closeModal()">Cancel</button>
+        <button class="danger" id="del-confirm" disabled onclick="OS.doDelete('${id}')">Delete permanently</button></div>`);
+    setTimeout(() => $("del-match") && $("del-match").focus(), 30);
+  },
+  delGuard: (id, val) => {
+    const p = state.local.projects[id]; const btn = $("del-confirm");
+    if (!p || !btn) return;
+    btn.disabled = (val !== p.title);
+  },
+  doDelete: async (id) => {
+    const p = state.local.projects[id]; if (!p) return;
+    delete state.local.projects[id];
+    state.local.order = state.local.order.filter(x => x !== id);
+    await saveLocal(); closeModal();
+    toast("Deleted permanently");
+    OS.goFeed(); renderAll();
   },
   jumpDirective: (shortHash) => {
     state.paneMode = "directives"; renderPane();
