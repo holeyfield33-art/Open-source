@@ -790,6 +790,44 @@ const OS = {
       <p style="font-weight:700;margin-top:14px">What's private vs public when I publish?</p>
       <p>Chained + published: prompt, reasoning, branch, hashes, signature. Never published: margin notes, the Notebook, and the ship checklist — private by construction, stripped automatically.</p>
 
+      <p style="font-weight:700;margin-top:14px">Manage a project (archive vs delete)?</p>
+      <p><strong>Archive</strong> hides a project from the main list but keeps it — reversible, nothing lost. <strong>Delete</strong> is permanent: localStorage is the only copy and there's no server backup, so the app makes you type the project's name to confirm. Deleting a local draft you already published does not unpublish the sealed record. Keyboard: the wordmark is Home, <span class="mono">Esc</span> or <span class="mono">Alt+←</span> steps back to the ledger, and <span class="mono">j</span>/<span class="mono">k</span> jump between directives inside a project.</p>
+
+      <p style="font-weight:700;margin-top:18px">Git commands — operating a repo properly.</p>
+      <p>The chain in this app maps directives to branches. These are the actual commands that make and push the work behind each directive.</p>
+
+      <p style="font-weight:600;margin-top:10px">Daily loop</p>
+      <p><span class="mono">git status</span> — see what changed before you do anything.<br>
+      <span class="mono">git add &lt;file&gt;</span> — stage a specific file. (Never <span class="mono">git add .</span> blindly — you'll commit junk and secrets.)<br>
+      <span class="mono">git commit -m "clear message"</span> — commit staged changes with a real message.<br>
+      <span class="mono">git push</span> — send commits to GitHub.<br>
+      <span class="mono">git pull</span> — get others' (or another machine's) changes before you start.</p>
+
+      <p style="font-weight:600;margin-top:10px">Branches (the unit this app maps to)</p>
+      <p><span class="mono">git checkout -b feature/thing</span> — create and switch to a new branch.<br>
+      <span class="mono">git checkout main</span> — switch back to main.<br>
+      <span class="mono">git branch</span> — list local branches; <span class="mono">git branch -a</span> includes remote.<br>
+      <span class="mono">git push -u origin feature/thing</span> — push a new branch and track it. <strong>This is what makes a branch verifiable here</strong> — a branch that only exists locally can't be checked.<br>
+      <span class="mono">git merge feature/thing</span> — merge a branch into your current one.</p>
+
+      <p style="font-weight:600;margin-top:10px">Fixing / backtracking (careful)</p>
+      <p><span class="mono">git diff</span> — see unstaged changes; <span class="mono">git diff --staged</span> for staged.<br>
+      <span class="mono">git restore &lt;file&gt;</span> — discard unstaged changes to a file (can't be undone).<br>
+      <span class="mono">git reset --soft HEAD~1</span> — undo the last commit, keep the changes staged.<br>
+      <span class="mono">git revert &lt;commit&gt;</span> — make a new commit that undoes an old one (safe, keeps history).<br>
+      Note: avoid <span class="mono">git reset --hard</span> unless you're certain — it deletes work permanently.</p>
+
+      <p style="font-weight:600;margin-top:10px">Connecting a repo</p>
+      <p><span class="mono">git clone &lt;url&gt;</span> — copy a repo locally.<br>
+      <span class="mono">git remote -v</span> — see where "origin" points.<br>
+      <span class="mono">git remote add origin &lt;url&gt;</span> — connect a local repo to GitHub.</p>
+
+      <p style="font-weight:600;margin-top:10px">GitHub Pages for this app</p>
+      <p>Put the file at <span class="mono">/docs/index.html</span>, push to <span class="mono">main</span>, then Settings → Pages → Deploy from branch → <span class="mono">main</span> / <span class="mono">/docs</span>.<br>
+      After a change: <span class="mono">git add docs/index.html &amp;&amp; git commit -m "update app" &amp;&amp; git push</span> — Pages redeploys in ~1 minute.</p>
+
+      <p class="dim" style="font-style:italic;margin-top:10px">The chain in this app proves your directive trail wasn't altered; these commands are how the actual code behind each directive gets made and pushed.</p>
+
       </div>
       <div class="btns"><button class="primary" onclick="OS.closeModal()">Got it</button></div>`);
   },
