@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OPEN SOURCE — a ledger of directives</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Archivo:wght@500;600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EAEDE9; --ink:#16211C; --seal:#1F5E3A; --amber:#B5651D; --verified:#1F5E3A;
+  --slate:#59665E; --wash:#DDE2DA; --line:#C2CABF; --card:#F2F5EF; --danger:#8A2D3B; --danger-wash:#F3E2E4;
+  --serif:"Newsreader", Georgia, serif;
+  --sans:"Archivo", system-ui, sans-serif;
+  --mono:"Spline Sans Mono", ui-monospace, "SF Mono", monospace;
+}
+*{box-sizing:border-box; margin:0}
+html,body{height:100%}
+body{background:var(--paper); color:var(--ink); font-family:var(--serif);
+  background-image:radial-gradient(circle at 1px 1px, rgba(22,33,28,.05) 1px, transparent 0); background-size:22px 22px}
+button{font-family:var(--sans); cursor:pointer; border:1px solid var(--ink); background:transparent; color:var(--ink);
+  border-radius:2px; padding:6px 12px; font-size:12px; font-weight:600; letter-spacing:.04em; transition:background .15s,color .15s}
+button:hover{background:var(--ink); color:var(--paper)}
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible{outline:2px solid var(--seal); outline-offset:2px}
+button.primary{background:var(--seal); border-color:var(--seal); color:#fff}
+button.primary:hover{background:#164529}
+button.amber{background:var(--amber); border-color:var(--amber); color:#fff}
+button.amber:hover{background:#8F4E16}
+button.ghost{border-color:var(--line); color:var(--slate)}
+button.ghost:hover{background:var(--wash); color:var(--ink)}
+button:disabled{opacity:.45; cursor:not-allowed}
+input,textarea{font-family:var(--serif); font-size:15px; color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:2px; padding:9px 11px; width:100%}
+textarea{resize:vertical; line-height:1.5}
+.mono,input.mono{font-family:var(--mono); font-size:12px}
+.eyebrow{font-family:var(--sans); font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--slate)}
+.dim{color:var(--slate)}
+
+#app{max-width:1280px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column}
+header.top{display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:16px 24px 12px; border-bottom:2px solid var(--ink)}
+.wordmark{font-family:var(--sans); font-weight:800; font-size:24px; letter-spacing:-.01em}
+.wordmark em{font-style:normal; color:var(--seal)}
+.tagline{font-style:italic; color:var(--slate); font-size:14px; font-family:var(--serif)}
+.spacer{flex:1}
+.handle-chip{display:flex; align-items:center; gap:8px}
+.handle-chip input{width:150px; padding:5px 8px; font-family:var(--mono); font-size:12px}
+main.body{flex:1; display:flex; min-height:0}
+nav.rail{width:310px; flex-shrink:0; border-right:1px solid var(--line); padding:18px 16px; overflow-y:auto; max-height:calc(100vh - 64px); position:sticky; top:0}
+section.pane{flex:1; min-width:0; padding:24px 32px 120px}
+@media (max-width:880px){ main.body{flex-direction:column} nav.rail{width:100%; max-height:none; position:static; border-right:none; border-bottom:1px solid var(--line)} section.pane{padding:20px 16px 120px} body.in-project nav.rail{display:none} }
+
+.crumbs{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:16px; font-family:var(--sans); font-size:12px; font-weight:600}
+.crumbs .sep{color:var(--line)} .crumbs a{color:var(--seal); text-decoration:none; border-bottom:1px solid transparent}
+.crumbs a:hover{border-bottom-color:var(--seal)}
+.crumbs .here{color:var(--slate); font-weight:500; font-style:italic; font-family:var(--serif); font-size:14px; max-width:36ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+.rail-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px}
+.proj-card{display:block; width:100%; text-align:left; border:1px solid var(--line); background:var(--card); border-radius:2px; padding:12px 14px; margin-bottom:10px; font-family:var(--serif)}
+.proj-card:hover{background:var(--wash); color:var(--ink)}
+.proj-card .t{font-family:var(--sans); font-size:15px; font-weight:700; margin-bottom:4px}
+.proj-card .m{font-family:var(--sans); font-size:11px; color:var(--slate); display:flex; gap:10px; flex-wrap:wrap; font-weight:500}
+.proj-card.local{border-left:3px solid var(--slate)} .proj-card.pub{border-left:3px solid var(--seal)}
+.proj-card.seed{border-left:3px solid var(--amber)}
+.badge{display:inline-block; font-family:var(--sans); font-size:10px; font-weight:700; letter-spacing:.1em; padding:1px 6px; border:1px solid currentColor; border-radius:2px}
+.badge.fork{color:var(--amber)} .badge.seed{color:var(--amber)} .badge.repo{color:var(--seal)}
+.empty{border:1px dashed var(--line); padding:16px; color:var(--slate); font-style:italic; border-radius:2px; font-size:14px}
+
+.proj-title{font-family:var(--sans); font-size:30px; font-weight:800; line-height:1.05; letter-spacing:-.015em}
+.repo-link{font-family:var(--mono); font-size:13px; color:var(--seal); text-decoration:none; border-bottom:1px solid var(--line)}
+.repo-link:hover{border-color:var(--seal)}
+.proj-sub{display:flex; align-items:center; gap:12px; margin-top:10px; flex-wrap:wrap}
+.verify-banner{display:flex; align-items:center; gap:10px; font-family:var(--sans); font-size:12px; font-weight:600; padding:8px 12px; border-radius:2px; margin:14px 0}
+.verify-banner.ok{background:#E0EBE3; color:var(--verified); border:1px solid var(--verified)}
+.verify-banner.bad{background:var(--danger-wash); color:var(--danger); border:1px solid var(--danger)}
+
+/* directive nodes */
+.dir{display:flex; gap:14px; padding:18px 0; border-bottom:1px solid var(--line); scroll-margin-top:20px}
+.seal-col{flex-shrink:0; width:42px; display:flex; flex-direction:column; align-items:center; gap:6px}
+.seal{width:38px; height:38px; cursor:pointer}
+.chain-tail{flex:1; width:1px; background:var(--line); min-height:14px}
+.dir-main{flex:1; min-width:0}
+.dir-meta{display:flex; align-items:baseline; gap:10px; margin-bottom:6px; flex-wrap:wrap}
+.dir-n{font-family:var(--sans); font-size:11px; font-weight:800; letter-spacing:.1em; color:var(--seal); text-transform:uppercase}
+.dir-branch{font-family:var(--mono); font-size:12px; background:var(--wash); padding:1px 8px; border-radius:2px; color:var(--ink)}
+.gh-state{font-family:var(--sans); font-size:10.5px; font-weight:700; letter-spacing:.06em; padding:1px 7px; border-radius:2px}
+.gh-state.verified{background:#E0EBE3; color:var(--verified); border:1px solid var(--verified)}
+.gh-state.missing{background:var(--danger-wash); color:var(--danger); border:1px solid var(--danger)}
+.gh-state.unchecked{background:var(--wash); color:var(--slate); border:1px solid var(--line)}
+.dir-prompt{font-family:var(--mono); font-size:13px; line-height:1.5; background:var(--card); border:1px solid var(--line); border-left:3px solid var(--seal); border-radius:2px; padding:11px 13px; white-space:pre-wrap; overflow-wrap:break-word; margin-bottom:8px}
+.dir-why{font-size:15px; line-height:1.6; overflow-wrap:break-word}
+.dir-why .lbl{font-family:var(--sans); font-size:10px; font-weight:700; letter-spacing:.1em; color:var(--slate); text-transform:uppercase; display:block; margin-bottom:2px}
+.dir-actions{display:flex; gap:6px; margin-top:12px; flex-wrap:wrap}
+.dir-actions button{padding:3px 9px; font-size:10.5px}
+.dir-target{font-family:var(--sans); font-size:11px; color:var(--slate); margin-top:6px}
+.dir-target a{color:var(--seal)}
+
+/* chain view */
+.chain-row{display:flex; gap:12px; align-items:flex-start; padding:12px 0; border-bottom:1px solid var(--line)}
+.chain-detail{flex:1; min-width:0}
+.chain-detail .lbl{font-family:var(--sans); font-size:10px; font-weight:700; letter-spacing:.1em; color:var(--slate); text-transform:uppercase; margin-top:6px}
+.chain-detail .mono{word-break:break-all; color:var(--slate)}
+.excerpt{font-style:italic; color:var(--slate); font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:56ch}
+
+.toggle{display:inline-flex; border:1px solid var(--ink); border-radius:2px; overflow:hidden}
+.toggle button{border:none; border-radius:0; padding:6px 14px}
+.toggle button.on{background:var(--ink); color:var(--paper)}
+
+/* composer */
+.composer{border-top:2px solid var(--ink); padding:16px 0 0; margin-top:24px}
+.composer .grid{display:grid; gap:10px}
+.field label{font-family:var(--sans); font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--slate); display:block; margin-bottom:4px}
+.branch-row{display:flex; gap:8px} .branch-row input{flex:1}
+.hint{font-family:var(--sans); font-size:11px; color:var(--slate); margin-top:6px}
+
+/* margin notes + notebook (private, unchained) */
+.checklist{margin-top:26px; border:1px solid var(--line); background:var(--card); border-radius:2px; padding:16px 18px}
+.checklist h4{font-family:var(--sans); font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--slate); margin-bottom:4px}
+.checklist .cl-sub{font-family:var(--sans); font-size:11px; color:var(--slate); margin-bottom:12px}
+.cl-item{display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-top:1px solid var(--line); cursor:pointer}
+.cl-item:first-of-type{border-top:none}
+.cl-box{flex-shrink:0; width:20px; height:20px; border:2px solid var(--slate); border-radius:3px; display:flex; align-items:center; justify-content:center; margin-top:1px; transition:background .12s, border-color .12s}
+.cl-item.done .cl-box{background:var(--seal); border-color:var(--seal)}
+.cl-box svg{opacity:0} .cl-item.done .cl-box svg{opacity:1}
+.cl-text{font-size:14.5px; line-height:1.45}
+.cl-item.done .cl-text{color:var(--slate); text-decoration:line-through}
+.cl-progress{font-family:var(--sans); font-size:11px; font-weight:700; color:var(--seal); margin-top:10px}
+.stat-box{border:1px solid var(--line); background:var(--card); border-radius:2px; padding:12px 18px; text-align:center; min-width:92px}
+.stat-box .sn{font-family:var(--sans); font-weight:800; font-size:26px; color:var(--seal)}
+.stat-box .sl{font-family:var(--sans); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--slate); margin-top:2px}
+.phase-tag{font-family:var(--sans); font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; background:var(--wash); color:var(--slate); padding:1px 8px; border-radius:2px}
+.margin-note{margin-top:10px; border-left:3px solid var(--amber); background:#F6F1E7; border-radius:2px; padding:9px 12px}
+.margin-note .lbl{font-family:var(--sans); font-size:10px; font-weight:700; letter-spacing:.1em; color:var(--amber); text-transform:uppercase; display:block; margin-bottom:3px}
+.margin-note textarea{background:transparent; border:none; padding:0; font-size:14px; font-style:italic; min-height:40px; width:100%}
+.margin-note textarea:focus-visible{outline:none}
+.notebook textarea{min-height:340px; font-size:15px; line-height:1.7; background:var(--card)}
+.notebook .meta{font-family:var(--sans); font-size:11px; color:var(--slate); margin-top:8px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px}
+.private-tag{font-family:var(--sans); font-size:10px; font-weight:700; letter-spacing:.1em; color:var(--amber); border:1px solid var(--amber); padding:1px 7px; border-radius:2px}
+
+.scrim{position:fixed; inset:0; background:rgba(22,33,28,.45); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px}
+.dialog{background:var(--paper); border:2px solid var(--ink); border-radius:2px; max-width:540px; width:100%; padding:22px; max-height:90vh; overflow-y:auto}
+.dialog h3{font-family:var(--sans); font-size:20px; font-weight:800; margin-bottom:10px}
+.dialog p{font-size:14px; line-height:1.5; margin-bottom:8px}
+.dialog .field{margin-bottom:12px}
+.dialog .btns{display:flex; gap:10px; justify-content:flex-end; margin-top:14px}
+.mono-box{background:var(--card); border:1px solid var(--line); padding:9px; font-family:var(--mono); font-size:11px; word-break:break-all}
+#toast{position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--paper); font-family:var(--sans); font-size:13px; font-weight:600; padding:10px 18px; border-radius:2px; z-index:60; display:none; max-width:90vw}
+.spin{display:inline-block; width:12px; height:12px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:sp .7s linear infinite; vertical-align:-2px; margin-right:5px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){ .spin{animation-duration:1.4s} }
+.collapsed-warning{border:1px solid var(--danger); background:var(--danger-wash); padding:16px; border-radius:2px; margin:16px 0}
+.collapsed-warning .eyebrow{color:var(--danger)}
+.intro-card{border:1px solid var(--line); background:var(--card); border-radius:2px; padding:16px 18px; margin-top:16px}
+.intro-card h4{font-family:var(--sans); font-size:14px; font-weight:800; margin-bottom:6px}
+.intro-card p{font-size:14px; line-height:1.55; color:var(--slate)}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div>
+      <div class="wordmark">OPEN <em>SOURCE</em></div>
+      <div class="tagline">Every directive is a node. Map it to a branch, chain the reasoning — the ledger remembers why.</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="handle-chip"><span class="eyebrow">Author</span>
+      <input id="handle" maxlength="24" spellcheck="false" aria-label="Your handle"></div>
+  </header>
+  <main class="body">
+    <nav class="rail" id="rail"></nav>
+    <section class="pane" id="pane"></section>
+  </main>
+</div>
+<div id="modal-root"></div>
+<div id="toast" role="status"></div>
+
+<script>
+/* =====================================================================
+   OPEN SOURCE — a hash-chained ledger of engineering directives.
+   A directive = { prompt (what you told the agent), reasoning (why),
+   target branch }. Directives chain like Group Chat nodes:
+     content_hash = sha256(canonical(directive_body))
+     chain_hash   = sha256(content_hash || parent_chain_hash)
+   Publishing signs the chain head (ECDSA P-256; Ed25519 is the
+   production target). Verification is FAIL-CLOSED. Branches can be
+   live-checked against GitHub's public API (verify, don't trust).
+   Two fork modes: branch-the-plan (alternative from a point) and
+   clone-the-trail (adapt a whole project). Seeded with ONE real
+   connected project; grows as users drop their own.
+   ===================================================================== */
+(() => {
+"use strict";
+/* ---------------- storage (GitHub Pages: localStorage) ----------------
+   No persistent artifact API on Pages; use the browser localStorage instead.
+   Published projects live under "proj:*" keys, personal state under LS_KEY,
+   keypair under KP_KEY. Single origin: the "public ledger" is this browser's
+   published projects. A real multi-user backend is the v2 upgrade; the
+   chain/verify/fork mechanics are identical either way. */
+const storage = {
+  get: async (k) => { const v = localStorage.getItem(k); return v === null ? null : { value: v }; },
+  set: async (k, v) => { localStorage.setItem(k, v); return { key: k }; },
+  list: async (prefix) => {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); if (!prefix || key.startsWith(prefix)) keys.push(key); }
+    return { keys };
+  },
+};
+/* ---------------- drop-in config ----------------
+   UNIVERSAL (default): PINNED_REPO = null. Runs standalone; users create
+   projects and name any public repo per project.
+   DROP-IN: set PINNED_REPO to "owner/name" (or auto-detect from the Pages
+   URL below) and this ledger focuses on that one repo — new projects
+   pre-fill it, and the header shows it. Drop this file into any repo's
+   /docs, set the one line, enable Pages. Same file, two modes. */
+const PINNED_REPO = (() => {
+  const MANUAL = null; // e.g. "holeyfield33-art/horos" to pin; leave null for universal
+  if (MANUAL) return MANUAL;
+  // Auto-detect: on a project Pages site (owner.github.io/repo/), infer owner/repo.
+  try {
+    const host = location.hostname, parts = location.pathname.split("/").filter(Boolean);
+    const m = host.match(/^([^.]+)\.github\.io$/);
+    if (m && parts.length) return m[1] + "/" + parts[0];
+  } catch (e) {}
+  return null;
+})();
+const PINNED_REPO_URL = PINNED_REPO ? "https://github.com/" + PINNED_REPO : "";
+const GENESIS = "0".repeat(64);
+const LS_KEY = "os-local-v1";
+const KP_KEY = "os-key-v1";
+const enc = new TextEncoder();
+const $ = (id) => document.getElementById(id);
+
+/* ---------------- crypto ---------------- */
+const hex = (buf) => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+async function sha256hex(s) { return hex(await crypto.subtle.digest("SHA-256", enc.encode(s))); }
+/* canonical directive body: stable key order so the hash is deterministic */
+function canonicalBody(d) { return JSON.stringify([d.prompt, d.reasoning, d.branch]); }
+async function contentHash(d) { return sha256hex(canonicalBody(d)); }
+async function chainHash(cH, parent) { return sha256hex(cH + parent); }
+
+const ECDSA = { name: "ECDSA", namedCurve: "P-256" };
+const SIGN = { name: "ECDSA", hash: "SHA-256" };
+async function loadOrCreateKeypair() {
+  try {
+    const r = await storage.get(KP_KEY);
+    if (r && r.value) {
+      const jwk = JSON.parse(r.value);
+      return { priv: await crypto.subtle.importKey("jwk", jwk.priv, ECDSA, true, ["sign"]),
+        pub: await crypto.subtle.importKey("jwk", jwk.pub, ECDSA, true, ["verify"]), pubJwk: jwk.pub };
+    }
+  } catch (e) {}
+  const kp = await crypto.subtle.generateKey(ECDSA, true, ["sign", "verify"]);
+  const priv = await crypto.subtle.exportKey("jwk", kp.privateKey);
+  const pub = await crypto.subtle.exportKey("jwk", kp.publicKey);
+  try { await storage.set(KP_KEY, JSON.stringify({ priv, pub })); }
+  catch (e) { console.error("keypair not persisted:", e); }
+  return { priv: kp.privateKey, pub: kp.publicKey, pubJwk: pub };
+}
+async function signHex(privKey, s) { return hex(await crypto.subtle.sign(SIGN, privKey, enc.encode(s))); }
+async function verifySig(pubJwk, s, sigHex) {
+  try {
+    const key = await crypto.subtle.importKey("jwk", pubJwk, ECDSA, true, ["verify"]);
+    const sig = new Uint8Array(sigHex.match(/.{2}/g).map(h => parseInt(h, 16)));
+    return crypto.subtle.verify(SIGN, key, sig, enc.encode(s));
+  } catch (e) { return false; }
+}
+async function verifyRecord(rec) {
+  let parent = rec.forkOf ? rec.forkOf.chainHash : GENESIS;
+  let chainOk = true;
+  for (const d of rec.directives) {
+    const cH = await contentHash(d);
+    const chH = await chainHash(cH, parent);
+    if (cH !== d.contentHash || chH !== d.chainHash) { chainOk = false; break; }
+    parent = chH;
+  }
+  const head = rec.directives.length ? rec.directives[rec.directives.length - 1].chainHash : parent;
+  let sigOk = false;
+  if (rec.sig && rec.pubkey) sigOk = await verifySig(rec.pubkey, head, rec.sig);
+  return { chainOk, sigOk, head };
+}
+
+/* ---------------- state ---------------- */
+const state = {
+  local: { projects: {}, order: [], handle: "", seeded: false },
+  feed: [], verif: {},
+  view: "feed", openId: null, openIsPub: false, paneMode: "directives",
+  ghCache: {}, // "owner/repo@branch" -> {state, sha, url}
+  kp: null,
+};
+async function saveLocal() {
+  try { await storage.set(LS_KEY, JSON.stringify(state.local)); }
+  catch (e) { toast("Local save failed — storage offline."); console.error(e); }
+}
+async function loadLocal() {
+  try { const r = await storage.get(LS_KEY); if (r && r.value) state.local = JSON.parse(r.value); }
+  catch (e) {}
+}
+async function loadFeed() {
+  state.feed = [];
+  let keys = [];
+  try { const r = await storage.list("proj:"); keys = (r && r.keys) || []; }
+  catch (e) { console.error("feed unavailable:", e); return; }
+  keys.sort().reverse();
+  for (const k of keys.slice(0, 20)) {
+    try {
+      const r = await storage.get(k);
+      if (r && r.value) { const rec = JSON.parse(r.value); rec._key = k; state.feed.push(rec); state.verif[rec.id] = await verifyRecord(rec); }
+    } catch (e) {}
+  }
+}
+function forkCount(projId) { return state.feed.filter(r => r.forkOf && r.forkOf.projId === projId).length; }
+
+/* ---------------- github verify (public API, CORS-open) ---------------- */
+function parseRepo(url) {
+  const m = String(url).match(/github\.com[/:]([^/]+)\/([^/#?]+?)(?:\.git)?(?:$|[/#?])/);
+  return m ? { owner: m[1], repo: m[2] } : null;
+}
+async function checkBranch(repoUrl, branch) {
+  const r = parseRepo(repoUrl);
+  if (!r || !branch) return { state: "unchecked" };
+  const cacheKey = r.owner + "/" + r.repo + "@" + branch;
+  if (state.ghCache[cacheKey]) return state.ghCache[cacheKey];
+  try {
+    // No custom headers: a bare GET is a CORS "simple request" and skips the
+    // preflight entirely. GitHub's preflight does NOT allow a custom Accept
+    // header, so adding one turns a working call into a blocked one.
+    const res = await fetch("https://api.github.com/repos/" + r.owner + "/" + r.repo + "/branches/" + encodeURIComponent(branch));
+    if (res.status === 404) {
+      const repoRes = await fetch("https://api.github.com/repos/" + r.owner + "/" + r.repo).catch(() => null);
+      if (repoRes && repoRes.status === 404) { const v = { state: "missing", reason: "repo not found (private or renamed?)" }; state.ghCache[cacheKey] = v; return v; }
+      const v = { state: "missing", reason: "branch '" + branch + "' not found in this repo" }; state.ghCache[cacheKey] = v; return v;
+    }
+    if (res.status === 403 || res.status === 429) {
+      // Unauthenticated GitHub is 60 req/hr per IP. The reset time is in a header.
+      let mins = "";
+      const reset = res.headers.get("x-ratelimit-reset");
+      if (reset) { const secs = Math.max(0, Math.round(+reset - Date.now() / 1000)); mins = " (resets in ~" + Math.ceil(secs / 60) + " min)"; }
+      return { state: "unchecked", reason: "GitHub rate limit hit — 60 checks/hr without a token" + mins };
+    }
+    if (!res.ok) return { state: "unchecked", reason: "GitHub returned " + res.status };
+    const data = await res.json();
+    const v = { state: "verified", sha: data.commit && data.commit.sha, url: data.commit && data.commit.html_url };
+    state.ghCache[cacheKey] = v; return v;
+  } catch (e) { return { state: "unchecked", reason: "couldn't reach GitHub (network offline?)" }; }
+}
+
+/* ---------------- project ops ---------------- */
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+function newProject(title, repoUrl, forkOf, ancestry) {
+  const p = { id: uid(), title: title || "Untitled project", repoUrl: repoUrl || "", createdAt: Date.now(),
+    directives: [], forkOf: forkOf || null, ancestry: ancestry || null, publishedAt: null };
+  state.local.projects[p.id] = p; state.local.order.unshift(p.id); return p;
+}
+async function appendDirective(proj, prompt, reasoning, branch) {
+  const last = proj.directives[proj.directives.length - 1];
+  const parent = last ? last.chainHash : (proj.forkOf ? proj.forkOf.chainHash : GENESIS);
+  const body = { prompt, reasoning, branch };
+  const cH = await contentHash(body);
+  const chH = await chainHash(cH, parent);
+  const d = { ...body, contentHash: cH, chainHash: chH, ts: Date.now() };
+  proj.directives.push(d); return d;
+}
+async function publishProject(proj) {
+  if (!proj.directives.length) throw new Error("add at least one directive before publishing");
+  const head = proj.directives[proj.directives.length - 1].chainHash;
+  const sig = await signHex(state.kp.priv, head);
+  // Publish only chain-relevant fields. Private notes + journal never leave the device.
+  const publicDirectives = proj.directives.map(d => ({
+    prompt: d.prompt, reasoning: d.reasoning, branch: d.branch,
+    contentHash: d.contentHash, chainHash: d.chainHash, ts: d.ts,
+  }));
+  const rec = { id: proj.id, title: proj.title, repoUrl: proj.repoUrl, author: state.local.handle,
+    pubkey: state.kp.pubJwk, sig, headChain: head, createdAt: proj.createdAt, publishedAt: Date.now(),
+    directives: publicDirectives, forkOf: proj.forkOf, ancestry: proj.ancestry, seed: proj.seed || false };
+  const key = "proj:" + String(rec.publishedAt).padStart(15, "0") + ":" + rec.id;
+  await storage.set(key, JSON.stringify(rec));
+  proj.publishedAt = rec.publishedAt; await saveLocal(); return rec;
+}
+/* fork mode A: branch the plan from a directive index (alternative path) */
+function forkPlan(rec, dirIndex) {
+  const upto = rec.directives.slice(0, dirIndex + 1);
+  const node = rec.directives[dirIndex];
+  const ancestry = (rec.ancestry ? rec.ancestry.slice() : []).concat(upto.map(d => ({ prompt: d.prompt, reasoning: d.reasoning, branch: d.branch })));
+  return newProject("Branch of “" + rec.title + "”", rec.repoUrl,
+    { projId: rec.id, chainHash: node.chainHash, title: rec.title, author: rec.author || "unknown", mode: "plan" }, ancestry);
+}
+/* fork mode B: clone the whole trail to adapt the project your way */
+function forkProject(rec) {
+  const node = rec.directives[rec.directives.length - 1];
+  const ancestry = (rec.ancestry ? rec.ancestry.slice() : []).concat(rec.directives.map(d => ({ prompt: d.prompt, reasoning: d.reasoning, branch: d.branch })));
+  return newProject("Adaptation of “" + rec.title + "”", rec.repoUrl,
+    { projId: rec.id, chainHash: node.chainHash, title: rec.title, author: rec.author || "unknown", mode: "project" }, ancestry);
+}
+
+/* ---------------- seal ---------------- */
+function sealSVG(chainHex, ok, size) {
+  const bytes = chainHex.match(/.{2}/g).slice(0, 12).map(h => parseInt(h, 16));
+  const c = size / 2, rOut = c - 2, color = ok ? "var(--verified)" : "var(--danger)";
+  let spokes = "";
+  bytes.forEach((b, i) => {
+    const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const r1 = rOut * 0.3, r2 = rOut * (0.42 + (b / 255) * 0.5);
+    spokes += `<line x1="${(c + Math.cos(a) * r1).toFixed(1)}" y1="${(c + Math.sin(a) * r1).toFixed(1)}" x2="${(c + Math.cos(a) * r2).toFixed(1)}" y2="${(c + Math.sin(a) * r2).toFixed(1)}" stroke="${color}" stroke-width="1.5" stroke-linecap="round"/>`;
+  });
+  return `<svg class="seal" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="Provenance seal">
+    <circle cx="${c}" cy="${c}" r="${rOut}" fill="none" stroke="${color}" stroke-width="1.3"/>
+    <circle cx="${c}" cy="${c}" r="${rOut * 0.22}" fill="${color}"/>${spokes}</svg>`;
+}
+
+/* ---------------- helpers ---------------- */
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+const short = h => h ? h.slice(0, 10) : "";
+const when = ts => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+async function copyText(text, label) {
+  try { await navigator.clipboard.writeText(text); toast((label || "Copied") + " to clipboard"); }
+  catch (e) { openModal(`<h3>Copy manually</h3><div class="mono-box">${esc(text)}</div><div class="btns"><button class="primary" onclick="OS.closeModal()">Done</button></div>`); }
+}
+function toast(m) { const t = $("toast"); t.textContent = m; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 2800); }
+function openModal(h) { $("modal-root").innerHTML = `<div class="scrim" onclick="if(event.target===this)OS.closeModal()"><div class="dialog" role="dialog" aria-modal="true">${h}</div></div>`; }
+function closeModal() { $("modal-root").innerHTML = ""; }
+
+/* ---------------- rendering ---------------- */
+function renderRail() {
+  const pubs = state.feed;
+  const locals = state.local.order.map(id => state.local.projects[id]).filter(Boolean);
+  let html = `<div class="rail-head"><span class="eyebrow">Public ledger</span>
+    <button class="ghost" style="padding:3px 8px;font-size:10px" onclick="OS.refresh()">Refresh</button></div>`;
+  if (!pubs.length) html += `<div class="empty">No projects published yet. Start one and publish to seed the ledger.</div>`;
+  for (const r of pubs) {
+    const v = state.verif[r.id] || {}; const fc = forkCount(r.id);
+    html += `<button class="proj-card ${r.seed ? "seed" : "pub"}" onclick="OS.openPub('${r.id}')">
+      <div class="t">${esc(r.title)}</div>
+      <div class="m"><span>${esc(r.author || "anon")}</span>
+      <span>${r.directives.length} directive${r.directives.length !== 1 ? "s" : ""}</span>
+      ${r.seed ? '<span class="badge seed">SEED</span>' : ""}
+      ${r.forkOf ? `<span class="badge fork">${r.forkOf.mode === "plan" ? "BRANCH" : "ADAPTED"}</span>` : ""}
+      ${fc ? `<span class="badge fork">${fc} fork${fc > 1 ? "s" : ""}</span>` : ""}
+      ${v.chainOk && v.sigOk ? '<span style="color:var(--verified)">✓ sealed</span>' : '<span style="color:var(--danger)">✕ unverified</span>'}</div></button>`;
+  }
+  html += `<div class="rail-head" style="margin-top:22px"><span class="eyebrow">Your projects</span></div>`;
+  html += `<button class="primary" style="width:100%;margin-bottom:10px" onclick="OS.startProject()">+ New project</button>`;
+  if (!locals.length) html += `<div class="empty">Private until you publish. Connect a repo, log directives, map each to a branch.</div>`;
+  for (const p of locals) {
+    html += `<button class="proj-card local" onclick="OS.openLocal('${p.id}')">
+      <div class="t">${esc(p.title)}</div>
+      <div class="m"><span>${p.directives.length} directive${p.directives.length !== 1 ? "s" : ""}</span>
+      ${p.forkOf ? `<span class="badge fork">${p.forkOf.mode === "plan" ? "BRANCH" : "ADAPTED"}</span>` : ""}
+      ${p.publishedAt ? '<span style="color:var(--verified)">published</span>' : "<span>draft</span>"}</div></button>`;
+  }
+  $("rail").innerHTML = html;
+}
+
+function currentProject() {
+  if (state.openIsPub) return state.feed.find(r => r.id === state.openId) || null;
+  return state.local.projects[state.openId] || null;
+}
+
+function renderPane() {
+  const pane = $("pane");
+  if (state.view === "feed") {
+    const locals = state.local.order.map(id => state.local.projects[id]).filter(Boolean);
+    const totalDir = locals.reduce((n, p) => n + p.directives.length, 0);
+    const q = (state.search || "").toLowerCase();
+    const hits = q ? locals.flatMap(p => p.directives.map((d, i) => ({ p, d, i }))
+      .filter(x => (x.d.prompt + " " + x.d.reasoning + " " + (x.d.note || "") + " " + (x.d.branch || "")).toLowerCase().includes(q))) : [];
+    pane.innerHTML = `
+      <div class="eyebrow" style="margin-bottom:6px">Your workspace</div>
+      <h1 class="proj-title" style="max-width:22ch">Every directive, every reason, in front of you.</h1>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin:16px 0">
+        <div class="stat-box"><div class="sn">${locals.length}</div><div class="sl">projects</div></div>
+        <div class="stat-box"><div class="sn">${totalDir}</div><div class="sl">directives</div></div>
+        <div class="stat-box"><div class="sn">${state.feed.filter(r => !r.seed).length}</div><div class="sl">published</div></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <input id="search-in" placeholder="Search every prompt, reason, note, branch…" value="${esc(state.search || "")}" oninput="OS.search(this.value)" style="flex:1;min-width:200px">
+        <button class="primary" onclick="OS.startProject()">+ New project</button>
+        <button class="ghost" onclick="OS.exportAll()">Export all</button>
+        <button class="ghost" onclick="OS.importPrompt()">Import backup</button>
+      </div>
+      ${q ? `<div class="eyebrow" style="margin:10px 0 6px">${hits.length} match${hits.length !== 1 ? "es" : ""}</div>
+        ${hits.slice(0, 30).map(x => `<button class="proj-card local" onclick="OS.openLocal('${x.p.id}')" style="margin-bottom:8px">
+          <div class="t" style="font-size:14px">${esc(x.p.title)} · directive ${x.i + 1}</div>
+          <div class="m" style="font-family:var(--mono);font-size:11px;color:var(--slate)">${esc((x.d.prompt || "").slice(0, 90))}…</div></button>`).join("") || '<div class="empty">No matches.</div>'}`
+      : `<div class="intro-card"><h4>How this works</h4><p>Each project is a clean linear chain of directives — the prompt, the reasoning, the branch. Add a <strong>margin note</strong> to any directive or open the <strong>Notebook</strong> to write and learn. Fork before a project bloats. Export anytime. Nothing leaves this browser unless you publish.</p></div>`}`;
+    return;
+  }
+  const p = currentProject();
+  if (!p) { pane.innerHTML = `<div class="empty">That project is gone. Pick another from the rail.</div>`; return; }
+  const isPub = state.openIsPub;
+  const v = isPub ? (state.verif[p.id] || {}) : null;
+
+  let html = `<div class="crumbs"><a href="#" onclick="OS.goFeed();return false">← Ledger</a>`;
+  if (p.forkOf) {
+    const exists = state.feed.some(r => r.id === p.forkOf.projId);
+    html += `<span class="sep">/</span>` + (exists
+      ? `<a href="#" onclick="OS.openPub('${p.forkOf.projId}');return false">${esc(p.forkOf.title)}</a>`
+      : `<span class="here">${esc(p.forkOf.title)}</span>`);
+  }
+  html += `<span class="sep">/</span><span class="here">${esc(p.title)}</span></div>`;
+
+  html += `<div>
+    <h1 class="proj-title${!isPub ? " editable" : ""}" ${!isPub ? `contenteditable="true" spellcheck="false" onblur="OS.retitle(this.textContent)"` : ""}>${esc(p.title)}</h1>
+    ${p.repoUrl ? `<div style="margin-top:6px"><a class="repo-link" href="${esc(p.repoUrl)}" target="_blank" rel="noopener">⎇ ${esc(p.repoUrl.replace(/^https?:\/\//, ""))}</a></div>` : ""}
+    <div class="proj-sub">
+      <span class="eyebrow">${isPub ? "Published by " + esc(p.author || "anon") : "Private draft"}</span>
+      <div class="toggle" role="tablist">
+        <button class="${state.paneMode === "directives" ? "on" : ""}" onclick="OS.setPane('directives')">Directives</button>
+        <button class="${state.paneMode === "chain" ? "on" : ""}" onclick="OS.setPane('chain')">Chain</button>
+        ${!isPub ? `<button class="${state.paneMode === "notebook" ? "on" : ""}" onclick="OS.setPane('notebook')">Notebook</button>` : ""}
+      </div>
+      ${!isPub ? `<button class="ghost" onclick="OS.editRepo()">${p.repoUrl ? "Change repo" : "Connect repo"}</button>` : ""}
+      ${!isPub && p.directives.length ? `<button class="primary" onclick="OS.confirmPublish()">Publish</button>` : ""}
+      ${isPub ? `<button class="amber" onclick="OS.doForkProject('${p.id}')">Adapt this project →</button>` : ""}
+    </div></div>`;
+
+  if (p.forkOf) html += `<div class="dir-target" style="margin-top:10px;font-style:italic">
+    ${p.forkOf.mode === "plan" ? "Branched from" : "Adapted from"} “${esc(p.forkOf.title)}” by ${esc(p.forkOf.author)} at node
+    <span class="mono">${short(p.forkOf.chainHash)}</span></div>`;
+
+  if (isPub) {
+    const ok = v.chainOk && v.sigOk;
+    html += `<div class="verify-banner ${ok ? "ok" : "bad"}">
+      ${ok ? "✓ Chain intact · author signature valid — recomputed just now"
+           : "✕ VERIFICATION FAILED — " + (v.chainOk ? "signature mismatch" : "hash chain broken") + ". Content collapsed."}</div>`;
+    if (!ok) { html += `<div class="collapsed-warning"><div class="eyebrow">Fail-closed</div>
+      <p style="margin-top:8px">This project failed cryptographic verification, so its directives are hidden. The chain was altered after signing, or never honestly signed.</p></div>`;
+      pane.innerHTML = html; return; }
+  }
+
+  if (p.ancestry && p.ancestry.length && !isPub) html += `<div class="dir-target" style="margin:12px 0;font-style:italic">${p.ancestry.length} inherited directive${p.ancestry.length > 1 ? "s" : ""} carried in as lineage — your new directives chain onto the fork point.</div>`;
+
+  if (!isPub && state.paneMode === "notebook") {
+    html += `<div class="notebook" style="margin-top:16px">
+      <div class="dir-meta" style="margin-bottom:8px"><span class="dir-n">Notebook</span><span class="private-tag">PRIVATE — never published, never chained</span></div>
+      <textarea id="nb-text" placeholder="Write to learn. What broke, what you'd prompt differently next time, patterns you're seeing across directives — this is your margin, not evidence. It stays on this device and is stripped from anything you publish.">${esc(p.journal || "")}</textarea>
+      <div class="meta"><span>autosaves as you type</span><span id="nb-saved"></span></div>
+    </div>`;
+    pane.innerHTML = html;
+    const nb = $("nb-text");
+    if (nb) { let t; nb.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => OS.saveJournal(nb.value), 500); }); }
+    return;
+  }
+
+  p.directives.forEach((d, i) => {
+    const ghKey = (parseRepo(p.repoUrl) ? parseRepo(p.repoUrl).owner + "/" + parseRepo(p.repoUrl).repo : "") + "@" + d.branch;
+    const gh = state.ghCache[ghKey] || { state: d.ghVerified ? "verified" : "unchecked", sha: d.ghSha, url: d.ghUrl };
+    if (state.paneMode === "chain") {
+      html += `<div class="chain-row" id="d-${d.chainHash.slice(0, 12)}">${sealSVG(d.chainHash, true, 38)}
+        <div class="chain-detail"><span class="dir-n">directive ${i + 1}</span>
+          <div class="excerpt">${esc(d.prompt.slice(0, 80))}</div>
+          <div class="lbl">branch</div><div class="mono">${esc(d.branch || "—")}</div>
+          <div class="lbl">content hash</div><div class="mono">${d.contentHash}</div>
+          <div class="lbl">chain hash · sha256(content ∥ parent)</div><div class="mono">${d.chainHash}</div>
+        </div></div>`;
+    } else {
+      html += `<div class="dir" id="d-${d.chainHash.slice(0, 12)}">
+        <div class="seal-col" title="Provenance seal from this directive's chain hash" onclick="OS.copyHash('${d.chainHash}')">
+          ${sealSVG(d.chainHash, true, 38)}${i < p.directives.length - 1 ? '<div class="chain-tail"></div>' : ""}</div>
+        <div class="dir-main">
+          <div class="dir-meta"><span class="dir-n">Directive ${i + 1}</span>
+            ${d.phase ? `<span class="phase-tag">${esc(d.phase)}</span>` : ""}
+            ${d.branch ? `<span class="dir-branch">⎇ ${esc(d.branch)}</span>` : ""}
+            <span class="gh-state ${gh.state}" id="gh-${d.chainHash.slice(0, 12)}">${gh.state === "verified" ? "✓ branch exists" : gh.state === "missing" ? "✕ branch not found" : "○ unverified"}</span>
+            <span class="mono dim">${short(d.chainHash)}</span></div>
+          <div class="dir-prompt">${esc(d.prompt)}</div>
+          ${d.reasoning ? `<div class="dir-why"><span class="lbl">Reasoning</span>${esc(d.reasoning)}</div>` : ""}
+          ${gh.state === "verified" && gh.url ? `<div class="dir-target">→ verified at commit <a href="${esc(gh.url)}" target="_blank" rel="noopener" class="mono">${short(gh.sha)}</a></div>` : ""}
+          ${!isPub ? `<div class="margin-note"><span class="lbl">Margin note — what you learned here (private)</span>
+            <textarea id="mn-${d.chainHash.slice(0, 12)}" placeholder="Add a note…" oninput="OS.saveNote('${d.chainHash}', this.value)">${esc(d.note || "")}</textarea></div>` : (d.note ? `<div class="margin-note"><span class="lbl">Margin note</span><div style="font-style:italic;font-size:14px">${esc(d.note)}</div></div>` : "")}
+          <div class="dir-actions">
+            ${p.repoUrl && d.branch ? `<button class="ghost" onclick="OS.verifyBranch('${p.id}',${i})">verify against GitHub</button>` : ""}
+            <button class="ghost" onclick="OS.copyDirective('${p.id}',${i})">copy prompt</button>
+            <button class="ghost" onclick="OS.permalink('${p.id}','${d.chainHash}')">copy link</button>
+            ${isPub ? `<button class="amber" onclick="OS.doForkPlan('${p.id}',${i})">branch the plan →</button>` : ""}
+          </div>
+        </div></div>`;
+    }
+  });
+
+  // Fixed ship-checklist under every project (per-project, private, unchained).
+  const CHECK_ITEMS = [
+    "Tested before ship — verified it runs, caught my own bugs",
+    "Docs match reality — described only what exists, no aspirational claims",
+    "Every number traces to a real run — no hand-waved metrics",
+    "Fail-closed checked — verified the failure path, not just the happy path",
+  ];
+  const checks = p.checklist || {};
+  const doneCount = CHECK_ITEMS.filter((_, i) => checks[i]).length;
+  const tick = `<svg viewBox="0 0 20 20" width="12" height="12"><path d="M4 10l4 4 8-9" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  html += `<div class="checklist">
+    <h4>Ship checklist</h4>
+    <div class="cl-sub">${isPub ? "The author's discipline gate for this project." : "Your discipline gate — tap to check. Private, never chained, stripped on publish."}</div>
+    ${CHECK_ITEMS.map((t, i) => `<div class="cl-item ${checks[i] ? "done" : ""}" ${isPub ? "" : `onclick="OS.toggleCheck(${i})"`}>
+      <div class="cl-box">${tick}</div><div class="cl-text">${esc(t)}</div></div>`).join("")}
+    <div class="cl-progress">${doneCount}/4 cleared${doneCount === 4 ? " — ready to push" : ""}</div>
+  </div>`;
+
+  if (!isPub) {
+    html += `<div class="composer"><div class="eyebrow" style="margin-bottom:10px">Log a directive</div><div class="grid">
+      <div class="field"><label>The prompt you gave your agent</label>
+        <textarea id="c-prompt" style="min-height:70px;font-family:var(--mono);font-size:13px" placeholder="e.g. Refactor the auth middleware to reject expired sessions on refresh, add a regression test."></textarea></div>
+      <div class="field"><label>Reasoning — why this change</label>
+        <textarea id="c-why" style="min-height:52px" placeholder="e.g. Sessions weren't being revalidated on token refresh; this closes the hole and locks it with a test."></textarea></div>
+      <div class="field"><label>Target branch</label>
+        <div class="branch-row"><input id="c-branch" class="mono" placeholder="fix/session-refresh" spellcheck="false">
+        <select id="c-phase" style="max-width:130px;font-family:var(--sans);font-size:13px"><option value="">no phase</option><option value="planning">Planning</option><option value="build">Build</option><option value="polish">Polish</option><option value="ship">Ship</option></select>
+        <button class="primary" onclick="OS.addDirective()">Chain it</button></div></div>
+    </div><div class="hint">The prompt + reasoning + branch become one signed node. Map real branches so readers can verify against GitHub.</div></div>`;
+  }
+  pane.innerHTML = html;
+}
+function renderAll() { renderRail(); renderPane(); }
+function syncBody() { document.body.classList.toggle("in-project", state.view === "project" || state.view === "thread" || (state.view !== "feed")); }
+
+/* ---------------- actions ---------------- */
+const OS = {
+  closeModal,
+  goFeed: () => { state.view = "feed"; state.openId = null; document.body.classList.remove("in-project"); renderAll(); window.scrollTo(0, 0); },
+  refresh: async () => { toast("Refreshing ledger…"); await loadFeed(); renderAll(); },
+  startProject: () => {
+    openModal(`<h3>New project</h3>
+      <div class="field"><label class="eyebrow">Project name</label><input id="np-title" placeholder="My OSS adaptation" spellcheck="false"></div>
+      <div class="field"><label class="eyebrow">GitHub repo URL (optional, enables branch verification)</label><input id="np-repo" class="mono" placeholder="https://github.com/owner/name" value="${esc(PINNED_REPO_URL)}" spellcheck="false"></div>
+      <div class="btns"><button class="ghost" onclick="OS.closeModal()">Cancel</button><button class="primary" onclick="OS.createProject()">Create</button></div>`);
+    setTimeout(() => $("np-title") && $("np-title").focus(), 30);
+  },
+  createProject: async () => {
+    const title = ($("np-title").value || "").trim() || "Untitled project";
+    const repo = ($("np-repo").value || "").trim();
+    if (repo && !parseRepo(repo)) { toast("that doesn't look like a github.com/owner/name URL"); return; }
+    const p = newProject(title, repo); await saveLocal(); closeModal();
+    state.view = "project"; state.openId = p.id; state.openIsPub = false; state.paneMode = "directives";
+    document.body.classList.add("in-project"); renderAll();
+  },
+  openLocal: (id) => { state.view = "project"; state.openId = id; state.openIsPub = false; state.paneMode = "directives"; document.body.classList.add("in-project"); renderAll(); window.scrollTo(0, 0); },
+  openPub: (id) => { state.view = "project"; state.openId = id; state.openIsPub = true; state.paneMode = "directives"; document.body.classList.add("in-project"); renderAll(); window.scrollTo(0, 0); },
+  setPane: (m) => { state.paneMode = m; renderPane(); },
+  saveNote: (chainH, text) => {
+    const p = currentProject(); if (!p || state.openIsPub) return;
+    const d = p.directives.find(x => x.chainHash === chainH); if (!d) return;
+    d.note = text; // NOT part of contentHash — chain stays valid
+    clearTimeout(OS._nt); OS._nt = setTimeout(() => saveLocal(), 500);
+  },
+  saveJournal: (text) => {
+    const p = currentProject(); if (!p || state.openIsPub) return;
+    p.journal = text; saveLocal();
+    const s = $("nb-saved"); if (s) { s.textContent = "saved " + new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); }
+  },
+  toggleCheck: (i) => {
+    const p = currentProject(); if (!p || state.openIsPub) return;
+    p.checklist = p.checklist || {};
+    p.checklist[i] = !p.checklist[i];
+    saveLocal(); renderPane();
+  },
+  search: (q) => { state.search = q; if (state.view === "feed") { const pos = document.activeElement === $("search-in"); renderPane(); if (pos) { const el = $("search-in"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } } } },
+  exportAll: () => {
+    const payload = JSON.stringify({ kind: "vibe-ledger-backup", version: 1, exportedAt: new Date().toISOString(), local: state.local }, null, 2);
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "vibe-ledger-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    toast("Backup exported — all projects, notes, and journals");
+  },
+  importPrompt: () => {
+    openModal(`<h3>Import backup</h3><p>Paste a previously exported backup JSON. This <strong>merges</strong> projects into your workspace (existing ones with the same id are overwritten).</p>
+      <div class="field"><textarea id="imp-json" style="min-height:160px;font-family:var(--mono);font-size:12px" placeholder='{"kind":"vibe-ledger-backup",...}'></textarea></div>
+      <div class="btns"><button class="ghost" onclick="OS.closeModal()">Cancel</button><button class="primary" onclick="OS.doImport()">Import &amp; merge</button></div>`);
+  },
+  doImport: async () => {
+    const ta = $("imp-json"); if (!ta) return;
+    let data;
+    try { data = JSON.parse(ta.value.trim()); } catch (e) { toast("that isn't valid JSON"); return; }
+    if (!data || data.kind !== "vibe-ledger-backup" || !data.local) { toast("not a vibe-ledger backup file"); return; }
+    let merged = 0;
+    for (const [id, proj] of Object.entries(data.local.projects || {})) {
+      state.local.projects[id] = proj;
+      if (!state.local.order.includes(id)) state.local.order.unshift(id);
+      merged++;
+    }
+    await saveLocal(); closeModal(); toast("Imported " + merged + " project" + (merged !== 1 ? "s" : "")); renderAll();
+  },
+  retitle: (txt) => { const p = currentProject(); if (p && !state.openIsPub) { p.title = txt.trim().slice(0, 120) || "Untitled project"; saveLocal(); renderRail(); } },
+  copyHash: (h) => copyText(h, "Chain hash copied"),
+  editRepo: () => {
+    const p = currentProject(); if (!p || state.openIsPub) return;
+    openModal(`<h3>${p.repoUrl ? "Change" : "Connect"} repo</h3>
+      <div class="field"><label class="eyebrow">GitHub repo URL</label><input id="er-repo" class="mono" value="${esc(p.repoUrl)}" placeholder="https://github.com/owner/name" spellcheck="false"></div>
+      <p class="dim" style="font-size:12px">Public repos only for verification. The URL lets readers live-check each directive's branch against GitHub.</p>
+      <div class="btns"><button class="ghost" onclick="OS.closeModal()">Cancel</button><button class="primary" onclick="OS.saveRepo()">Save</button></div>`);
+    setTimeout(() => $("er-repo") && $("er-repo").focus(), 30);
+  },
+  saveRepo: async () => {
+    const p = currentProject(); if (!p) return;
+    const url = ($("er-repo").value || "").trim();
+    if (url && !parseRepo(url)) { toast("not a valid github.com/owner/name URL"); return; }
+    p.repoUrl = url; await saveLocal(); closeModal(); renderAll();
+  },
+  addDirective: async () => {
+    const p = currentProject(); if (!p || state.openIsPub) return;
+    const prompt = ($("c-prompt").value || "").trim();
+    const why = ($("c-why").value || "").trim();
+    const branch = ($("c-branch").value || "").trim();
+    const phase = ($("c-phase") ? $("c-phase").value : "") || "";
+    if (prompt.length < 5) { toast("write the prompt you actually gave the agent"); return; }
+    const d = await appendDirective(p, prompt, why, branch);
+    d.phase = phase; // unchained metadata
+    if (p.title === "Untitled project") p.title = prompt.slice(0, 60);
+    await saveLocal(); renderAll();
+    toast("Directive chained" + (branch ? " → " + branch : ""));
+    const last = p.directives[p.directives.length - 1];
+    const el = document.getElementById("d-" + last.chainHash.slice(0, 12)); if (el) el.scrollIntoView({ block: "center" });
+  },
+  verifyBranch: async (pid, i) => {
+    const p = currentProject(); if (!p) return;
+    const d = p.directives[i];
+    const badge = $("gh-" + d.chainHash.slice(0, 12));
+    if (badge) badge.innerHTML = '<span class="spin"></span>checking';
+    const res = await checkBranch(p.repoUrl, d.branch);
+    if (res.state === "verified") {
+      if (!state.openIsPub) { d.ghVerified = true; d.ghSha = res.sha; d.ghUrl = res.url; await saveLocal(); }
+      toast("Verified — branch exists at " + short(res.sha));
+    } else if (res.state === "missing") {
+      toast(res.reason || "branch not found");
+    } else {
+      toast(res.reason || "couldn't verify — try again");
+    }
+    renderPane();
+  },
+  copyDirective: (pid, i) => { const p = currentProject(); if (!p) return; copyText(p.directives[i].prompt, "Prompt copied"); },
+  permalink: (pid, h) => copyText("opensource://" + pid + "/directive/" + h, "Directive link copied"),
+
+  confirmPublish: () => {
+    const p = currentProject(); if (!p || !p.directives.length) return;
+    openModal(`<h3>Publish this project?</h3>
+      <p><strong>Publishing is public.</strong> Everyone with this artifact can read your directive trail, verify it, branch a plan, or adapt the whole project. Your handle <span class="mono">${esc(state.local.handle)}</span> and a device signature are attached.</p>
+      <p>Chain head to be signed:</p><div class="mono-box">${p.directives[p.directives.length - 1].chainHash}</div>
+      <p class="dim" style="font-style:italic;font-size:12px">Don't publish secrets or private prompts. Published trails are permanent to readers.</p>
+      <div class="btns"><button class="ghost" onclick="OS.closeModal()">Keep private</button><button class="primary" onclick="OS.publish()">Sign &amp; publish</button></div>`);
+  },
+  publish: async () => {
+    closeModal(); const p = currentProject(); if (!p) return;
+    try { const rec = await publishProject(p); toast("Published — sealed at " + short(rec.headChain)); await loadFeed(); state.openIsPub = true; state.openId = rec.id; renderAll(); }
+    catch (e) { toast("Publish failed: " + e.message); }
+  },
+  doForkPlan: (pid, i) => {
+    const rec = state.feed.find(r => r.id === pid); if (!rec) return;
+    const p = forkPlan(rec, i); saveLocal();
+    state.view = "project"; state.openId = p.id; state.openIsPub = false; state.paneMode = "directives"; document.body.classList.add("in-project");
+    renderAll(); toast("Branched the plan — your directives chain onto node " + short(rec.directives[i].chainHash));
+  },
+  doForkProject: (pid) => {
+    const rec = state.feed.find(r => r.id === pid); if (!rec) return;
+    const p = forkProject(rec); saveLocal();
+    state.view = "project"; state.openId = p.id; state.openIsPub = false; state.paneMode = "directives"; document.body.classList.add("in-project");
+    renderAll(); toast("Adapted the project — the whole trail is now yours to steer");
+  },
+  setHandle: async (v) => { state.local.handle = (v || "").trim().slice(0, 24) || state.local.handle; $("handle").value = state.local.handle; await saveLocal(); },
+};
+window.OS = OS;
+
+/* ---------------- seed: ONE real connected project ----------------
+   The Horos public-router build, told as the directive trail it actually
+   was this week. Chains computed live at seed time so it verifies honestly.
+   Branches are illustrative of the real work; readers can verify the repo. */
+async function seedIfNeeded() {
+  if (state.local.seeded) return;
+  try { const ex = await storage.list("proj:"); if (ex && ex.keys && ex.keys.length) { state.local.seeded = true; await saveLocal(); return; } } catch (e) {}
+  const seed = {
+    title: "Horos → free public router",
+    repo: "https://github.com/holeyfield33-art/horos",
+    directives: [
+      { prompt: "Replace the placeholder signing seed in mcp/router_runner.mjs. Read HOROS_KEY_SEED from env, require 64 hex chars, fail the runner if missing. The server must refuse to sign with a default identity.",
+        why: "The live service was signing every receipt with an all-zeros key — a signature that proves nothing. This is the load-bearing fix: no real key, no real product.",
+        branch: "main" },
+      { prompt: "Add an unauthenticated POST /public/route to the Starlette app, carved out of the bearer wall like /healthz. Accept a public repo_url (primary) or a graph (fallback) plus a task; clone tokenless, generate, route, sign, return {summary, receipt}.",
+        why: "The whole point of a public tool: a stranger pastes a repo and gets a signed receipt. GITHUB_TOKEN gated OFF here so anonymous callers can never reach private repos.",
+        branch: "main" },
+      { prompt: "Lock CORS on /public/route to the GitHub Pages origin only. Handle OPTIONS preflight. Do not relax CORS on /mcp or anything else.",
+        why: "The browser UI lives on a different origin than the API; without an exact allow-origin match the calls fail. Everything else stays behind the bearer wall.",
+        branch: "main" },
+      { prompt: "Classify RouteError into actionable 4xx messages instead of a bare 422. no_entrypoints / empty_selection → a clear 'try a more specific task or confirm the repo has analyzable files' message. Surface the error text in the Pages UI.",
+        why: "A valid public repo that routes empty was returning a naked 422 with no reason. A public endpoint that rejects input must say why — fail closed, but fail legibly.",
+        branch: "claude/horos-public-route-422-x2ipgl" },
+    ],
+  };
+  const p = newProject(seed.title, seed.repo); p.seed = true;
+  for (const d of seed.directives) await appendDirective(p, d.prompt, d.why, d.branch);
+  try { await publishProject(p); } catch (e) { console.error("seed publish failed:", e); }
+  delete state.local.projects[p.id];
+  state.local.order = state.local.order.filter(id => id !== p.id);
+  state.local.seeded = true; await saveLocal();
+}
+
+/* ---------------- boot ---------------- */
+(async function boot() {
+  $("pane").innerHTML = `<div class="empty">Opening the ledger — loading keys, projects, and the public feed…</div>`;
+  await loadLocal();
+  state.kp = await loadOrCreateKeypair();
+  if (!state.local.handle) { const pkh = await sha256hex(JSON.stringify(state.kp.pubJwk)); state.local.handle = "dev-" + pkh.slice(0, 6); await saveLocal(); }
+  $("handle").value = state.local.handle;
+  $("handle").addEventListener("change", e => OS.setHandle(e.target.value));
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if ($("modal-root").innerHTML) { closeModal(); return; }
+    const a = document.activeElement;
+    if (a && (a.tagName === "TEXTAREA" || a.tagName === "INPUT" || a.isContentEditable)) { a.blur(); return; }
+    if (state.view !== "feed") OS.goFeed();
+  });
+  await seedIfNeeded();
+  await loadFeed();
+  renderAll();
+})();
+})();
+</script>
+</body>
+</html>
