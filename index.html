@@ -37,8 +37,10 @@ textarea{resize:vertical; line-height:1.5}
 
 #app{max-width:1280px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column}
 header.top{display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:16px 24px 12px; border-bottom:2px solid var(--ink)}
-.wordmark{font-family:var(--sans); font-weight:800; font-size:24px; letter-spacing:-.01em}
-.wordmark em{font-style:normal; color:var(--seal)}
+.wordmark{font-family:var(--sans); font-weight:800; font-size:24px; letter-spacing:-.01em; cursor:pointer; display:inline-block; border-radius:2px}
+.wordmark:hover em{color:var(--amber)}
+.wordmark:focus-visible{outline:2px solid var(--seal); outline-offset:3px}
+.wordmark em{font-style:normal; color:var(--seal); transition:color .15s}
 .tagline{font-style:italic; color:var(--slate); font-size:14px; font-family:var(--serif)}
 .spacer{flex:1}
 .handle-chip{display:flex; align-items:center; gap:8px}
@@ -60,6 +62,7 @@ section.pane{flex:1; min-width:0; padding:24px 32px 120px}
 .proj-card .m{font-family:var(--sans); font-size:11px; color:var(--slate); display:flex; gap:10px; flex-wrap:wrap; font-weight:500}
 .proj-card.local{border-left:3px solid var(--slate)} .proj-card.pub{border-left:3px solid var(--seal)}
 .proj-card.seed{border-left:3px solid var(--amber)}
+.proj-card.active{border-left-width:2px; border-left-color:var(--seal); background:var(--wash); box-shadow:inset 3px 0 0 var(--seal)}
 .badge{display:inline-block; font-family:var(--sans); font-size:10px; font-weight:700; letter-spacing:.1em; padding:1px 6px; border:1px solid currentColor; border-radius:2px}
 .badge.fork{color:var(--amber)} .badge.seed{color:var(--amber)} .badge.repo{color:var(--seal)}
 .empty{border:1px dashed var(--line); padding:16px; color:var(--slate); font-style:italic; border-radius:2px; font-size:14px}
@@ -165,7 +168,7 @@ section.pane{flex:1; min-width:0; padding:24px 32px 120px}
 <div id="app">
   <header class="top">
     <div>
-      <div class="wordmark">OPEN <em>SOURCE</em></div>
+      <div class="wordmark" role="button" tabindex="0" aria-label="Home — return to the ledger" title="Home" onclick="OS.goFeed()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();OS.goFeed()}">OPEN <em>SOURCE</em></div>
       <div class="tagline">Every directive is a node. Map it to a branch, chain the reasoning — the ledger remembers why.</div>
     </div>
     <div class="spacer"></div>
@@ -428,6 +431,9 @@ function closeModal() { $("modal-root").innerHTML = ""; }
 
 /* ---------------- rendering ---------------- */
 function renderRail() {
+  // Mark the open project so location is always visible in the rail.
+  const activePub = (id) => (state.view === "project" && state.openIsPub && state.openId === id) ? " active" : "";
+  const activeLocal = (id) => (state.view === "project" && !state.openIsPub && state.openId === id) ? " active" : "";
   const pubs = state.feed;
   const locals = state.local.order.map(id => state.local.projects[id]).filter(Boolean);
   const activeLocals = locals.filter(p => !p.archived);
@@ -437,7 +443,7 @@ function renderRail() {
   if (!pubs.length) html += `<div class="empty">No projects published yet. Start one and publish to seed the ledger.</div>`;
   for (const r of pubs) {
     const v = state.verif[r.id] || {}; const fc = forkCount(r.id);
-    html += `<button class="proj-card ${r.seed ? "seed" : "pub"}" onclick="OS.openPub('${r.id}')">
+    html += `<button class="proj-card ${r.seed ? "seed" : "pub"}${activePub(r.id)}" onclick="OS.openPub('${r.id}')">
       <div class="t">${esc(r.title)}</div>
       <div class="m"><span>${esc(r.author || "anon")}</span>
       <span>${r.directives.length} directive${r.directives.length !== 1 ? "s" : ""}</span>
@@ -450,7 +456,7 @@ function renderRail() {
   html += `<button class="primary" style="width:100%;margin-bottom:10px" onclick="OS.startProject()">+ New project</button>`;
   if (!activeLocals.length) html += `<div class="empty">Private until you publish. Connect a repo, log directives, map each to a branch.</div>`;
   for (const p of activeLocals) {
-    html += `<button class="proj-card local" onclick="OS.openLocal('${p.id}')">
+    html += `<button class="proj-card local${activeLocal(p.id)}" onclick="OS.openLocal('${p.id}')">
       <div class="t">${esc(p.title)}</div>
       <div class="m"><span>${p.directives.length} directive${p.directives.length !== 1 ? "s" : ""}</span>
       ${p.forkOf ? `<span class="badge fork">${p.forkOf.mode === "plan" ? "BRANCH" : "ADAPTED"}</span>` : ""}
@@ -459,7 +465,7 @@ function renderRail() {
   if (archivedLocals.length) {
     html += `<div class="rail-head" style="margin-top:20px"><span class="eyebrow" style="color:var(--slate)">Archived (${archivedLocals.length})</span></div>`;
     for (const p of archivedLocals) {
-      html += `<button class="proj-card local" style="opacity:.6" onclick="OS.openLocal('${p.id}')">
+      html += `<button class="proj-card local${activeLocal(p.id)}" style="opacity:.6" onclick="OS.openLocal('${p.id}')">
         <div class="t">${esc(p.title)} <span class="archived-tag">ARCHIVED</span></div>
         <div class="m"><span>${p.directives.length} directive${p.directives.length !== 1 ? "s" : ""}</span></div></button>`;
     }
@@ -716,6 +722,17 @@ const OS = {
     state.paneMode = "directives"; renderPane();
     setTimeout(() => { const el = document.getElementById("d-" + shortHash); if (el) el.scrollIntoView({ block: "center", behavior: "smooth" }); }, 40);
   },
+  stepDirective: (dir) => {
+    // Scroll to the next (dir=1) or previous (dir=-1) directive card relative to viewport center.
+    const cards = [...document.querySelectorAll('[id^="d-"]')];
+    if (!cards.length) return;
+    const mid = window.innerHeight / 2;
+    const tops = cards.map(el => el.getBoundingClientRect().top);
+    let target;
+    if (dir === 1) target = cards[tops.findIndex(t => t > mid + 4)] || cards[cards.length - 1];
+    else { const idx = [...tops].reverse().findIndex(t => t < mid - 4); target = idx === -1 ? cards[0] : cards[cards.length - 1 - idx]; }
+    if (target) target.scrollIntoView({ block: "center", behavior: "smooth" });
+  },
   guide: () => {
     openModal(`<h3>Guide</h3>
       <div style="max-height:60vh;overflow-y:auto;padding-right:6px">
@@ -889,11 +906,27 @@ async function seedIfNeeded() {
   $("handle").value = state.local.handle;
   $("handle").addEventListener("change", e => OS.setHandle(e.target.value));
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if ($("modal-root").innerHTML) { closeModal(); return; }
+    // Escape: close a modal, blur a field, or step back to the ledger.
+    if (e.key === "Escape") {
+      if ($("modal-root").innerHTML) { closeModal(); return; }
+      const a = document.activeElement;
+      if (a && (a.tagName === "TEXTAREA" || a.tagName === "INPUT" || a.isContentEditable)) { a.blur(); return; }
+      if (state.view !== "feed") OS.goFeed();
+      return;
+    }
+    // Everything below is a shortcut: never fire while typing, and never over a modal.
+    if ($("modal-root").innerHTML) return;
     const a = document.activeElement;
-    if (a && (a.tagName === "TEXTAREA" || a.tagName === "INPUT" || a.isContentEditable)) { a.blur(); return; }
-    if (state.view !== "feed") OS.goFeed();
+    if (a && (a.tagName === "TEXTAREA" || a.tagName === "INPUT" || a.isContentEditable)) return;
+    // Alt+ArrowLeft: back to the ledger from any project view.
+    if (e.altKey && e.key === "ArrowLeft") {
+      if (state.view !== "feed") { e.preventDefault(); OS.goFeed(); }
+      return;
+    }
+    // j / k: jump to the next / previous directive card within an open project.
+    if ((e.key === "j" || e.key === "k") && state.view === "project" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      OS.stepDirective(e.key === "j" ? 1 : -1);
+    }
   });
   await seedIfNeeded();
   await loadFeed();
