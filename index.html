@@ -165,6 +165,25 @@ section.pane{flex:1; min-width:0; padding:24px 32px 120px}
 .intro-card{border:1px solid var(--line); background:var(--card); border-radius:2px; padding:16px 18px; margin-top:16px}
 .intro-card h4{font-family:var(--sans); font-size:14px; font-weight:800; margin-bottom:6px}
 .intro-card p{font-size:14px; line-height:1.55; color:var(--slate)}
+/* staged drafts (scan output — unchained until the user chains them) */
+.draft-card{border:1px dashed var(--amber); background:var(--card); border-radius:2px; padding:14px 16px; margin-bottom:12px}
+.draft-card .eyebrow{color:var(--amber); display:block; margin-bottom:10px}
+.scan-row{display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-top:1px solid var(--line); cursor:pointer}
+.scan-row:first-of-type{border-top:none}
+.scan-row input[type=checkbox]{width:auto; margin-top:3px; accent-color:var(--seal)}
+.scan-row .b{font-family:var(--mono); font-size:12px; word-break:break-all}
+.scan-row .c{font-style:italic; color:var(--slate); font-size:12.5px; margin-top:2px}
+/* dependency tags (unchained metadata on directives) */
+.dep-chip{display:inline-block; font-family:var(--mono); font-size:10.5px; background:var(--wash); border:1px solid var(--line); border-radius:2px; padding:0 6px; margin:2px 6px 0 0}
+.dep-chip b{cursor:pointer; font-weight:600; color:var(--slate); margin-left:4px}
+.dep-chip b:hover{color:var(--danger)}
+input.dep-add{font-family:var(--mono); font-size:10.5px; width:160px; padding:2px 7px; display:inline-block; background:var(--card); border:1px dashed var(--line); vertical-align:middle}
+.pkg-legend{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:12px}
+.pkg-legend button{font-family:var(--mono); font-size:10.5px; padding:2px 8px; letter-spacing:0}
+.dep-e{opacity:.35; transition:opacity .15s}
+.dep-e.hl{opacity:1}
+.map-sel{cursor:pointer}
+.brief-box{white-space:pre-wrap; word-break:normal; overflow-wrap:break-word; max-height:52vh; overflow-y:auto; font-size:11.5px; line-height:1.6}
 </style>
 </head>
 <body>
@@ -424,6 +443,11 @@ function sealSVG(chainHex, ok, size) {
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 const short = h => h ? h.slice(0, 10) : "";
 const when = ts => new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+const PHASE_COLOR = { planning: "#B5651D", build: "#1F5E3A", polish: "#3A6B8A", ship: "#8A2D3B", "": "#59665E" };
+const DEP_COLORS = ["#3A6B8A", "#8A2D3B", "#6B4E8A", "#1F5E3A", "#B5651D", "#59665E"];
+/* dep tags land inside HTML attributes — keep them to safe chars by construction */
+const depSan = s => String(s).replace(/[^\w@/.+:-]/g, "").slice(0, 40);
+const SCAN_TTL = 10 * 60 * 1000; // ghCache "#scan"/"#pkg" entries stay fresh this long
 async function copyText(text, label) {
   try { await navigator.clipboard.writeText(text); toast((label || "Copied") + " to clipboard"); }
   catch (e) { openModal(`<h3>Copy manually</h3><div class="mono-box">${esc(text)}</div><div class="btns"><button class="primary" onclick="OS.closeModal()">Done</button></div>`); }
@@ -431,6 +455,46 @@ async function copyText(text, label) {
 function toast(m) { const t = $("toast"); t.textContent = m; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 2800); }
 function openModal(h) { $("modal-root").innerHTML = `<div class="scrim" onclick="if(event.target===this)OS.closeModal()"><div class="dialog" role="dialog" aria-modal="true">${h}</div></div>`; }
 function closeModal() { $("modal-root").innerHTML = ""; }
+
+/* ---------------- agent brief (derived output — never touches the chain) ---------------- */
+function briefVerified(p, d) {
+  if (d.ghVerified) return { ok: true, sha: d.ghSha };
+  const r = parseRepo(p.repoUrl);
+  const c = r ? state.ghCache[r.owner + "/" + r.repo + "@" + d.branch] : null;
+  return c && c.state === "verified" ? { ok: true, sha: c.sha } : { ok: false };
+}
+function buildBrief(p, fromIndex) {
+  const dirs = p.directives.slice(fromIndex || 0);
+  const r = parseRepo(p.repoUrl);
+  const latestBranch = [...p.directives].map(d => d.branch).filter(Boolean).pop() || "";
+  const k = dirs.filter(d => briefVerified(p, d).ok).length;
+  let out = "# Agent brief — " + p.title + "\n";
+  out += "Repo: " + (p.repoUrl || "(none)") + "   Current branch context: " + (latestBranch || "(none)") + "\n";
+  out += "Generated " + new Date().toISOString() + " from the OPEN SOURCE ledger.\n\n";
+  out += "## Directive chain (" + dirs.length + " nodes, verified: " + k + ")\n";
+  dirs.forEach((d, i) => {
+    const v = briefVerified(p, d);
+    out += (i + 1) + ". [" + (d.phase || "unphased") + "] " + (d.branch || "no branch") + " — " + d.prompt + "\n";
+    out += "   why: " + (d.reasoning || "(none)") + "   " + (v.ok ? "gh: verified @ " + short(v.sha) : "unverified") + "\n";
+  });
+  if (r) {
+    const b = latestBranch || "main";
+    out += "\n## Repo API entry points\n";
+    out += "- Tree: https://api.github.com/repos/" + r.owner + "/" + r.repo + "/git/trees/" + b + "?recursive=1\n";
+    out += "- Contents: https://api.github.com/repos/" + r.owner + "/" + r.repo + "/contents/?ref=" + b + "\n";
+    out += "- Branch: https://github.com/" + r.owner + "/" + r.repo + "/tree/" + b + "\n";
+  }
+  const drafts = p.drafts || [];
+  const qNotes = p.directives.filter(d => d.note && d.note.includes("?")).map(d => d.note.trim());
+  if (drafts.length || qNotes.length) {
+    out += "\n## Open threads\n";
+    drafts.forEach(dr => { out += "- planned next: " + (dr.prompt || "").split("\n")[0] + (dr.branch ? " (" + dr.branch + ")" : "") + "\n"; });
+    qNotes.forEach(n => { out += "- question from a margin note: " + n.split("\n")[0] + "\n"; });
+  }
+  out += "\n## Instruction to the agent\n";
+  out += "Continue this project consistent with the chain above. Work on branch " + (latestBranch || "a new feature branch") + ". Keep changes scoped; state assumptions.\n";
+  return out;
+}
 
 /* ---------------- rendering ---------------- */
 function renderRail() {
@@ -533,9 +597,12 @@ function renderPane() {
         <button class="${state.paneMode === "directives" ? "on" : ""}" onclick="OS.setPane('directives')">Directives</button>
         <button class="${state.paneMode === "chain" ? "on" : ""}" onclick="OS.setPane('chain')">Chain</button>
         <button class="${state.paneMode === "graph" ? "on" : ""}" onclick="OS.setPane('graph')">Graph</button>
+        <button class="${state.paneMode === "map" ? "on" : ""}" onclick="OS.setPane('map')">Map</button>
         ${!isPub ? `<button class="${state.paneMode === "notebook" ? "on" : ""}" onclick="OS.setPane('notebook')">Notebook</button>` : ""}
       </div>
       ${!isPub ? `<button class="ghost" onclick="OS.editRepo()">${p.repoUrl ? "Change repo" : "Connect repo"}</button>` : ""}
+      ${!isPub && p.repoUrl ? `<button class="ghost" id="scan-btn" onclick="OS.scanRepo()">Scan repo</button>` : ""}
+      ${p.directives.length ? `<button class="amber" onclick="OS.agentBrief()">Agent brief</button>` : ""}
       ${!isPub && p.directives.length ? `<button class="primary" onclick="OS.confirmPublish()">Publish</button>` : ""}
       ${!isPub ? `<button class="ghost" onclick="OS.archive('${p.id}')">${p.archived ? "Unarchive" : "Archive"}</button>` : ""}
       ${!isPub ? `<button class="danger" onclick="OS.confirmDelete('${p.id}')">Delete</button>` : ""}
@@ -577,7 +644,6 @@ function renderPane() {
   }
 
   if (state.paneMode === "graph") {
-    const PHASE_COLOR = { planning: "#B5651D", build: "#1F5E3A", polish: "#3A6B8A", ship: "#8A2D3B", "": "#59665E" };
     const rowH = 62, padY = 30, cx = 34, w = 680;
     const H = padY * 2 + Math.max(0, p.directives.length - 1) * rowH + (p.directives.length ? 0 : 20);
     let svg = `<svg viewBox="0 0 ${w} ${H}" width="100%" height="${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Directive timeline">`;
@@ -600,6 +666,95 @@ function renderPane() {
     html += `<div class="graph-wrap">
       <div class="graph-legend">${["planning","build","polish","ship"].filter(ph => usedPhases.includes(ph)).map(ph => `<span><i style="background:${PHASE_COLOR[ph]}"></i>${ph}</span>`).join("")}${usedPhases.includes("") ? `<span><i style="background:${PHASE_COLOR[""]}"></i>unphased</span>` : ""}</div>
       ${p.directives.length ? svg : '<div class="empty">No directives yet — the timeline fills as you chain them.</div>'}
+    </div>`;
+    pane.innerHTML = html;
+    return;
+  }
+
+  if (state.paneMode === "map") {
+    const w = 720, cx = 46;
+    const repo = parseRepo(p.repoUrl);
+    const allTags = [...new Set(p.directives.flatMap(d => d.deps || []))];
+    const tagColor = t => DEP_COLORS[allTags.indexOf(t) % DEP_COLORS.length];
+    // vertical layout: optional fork-origin node, then chain nodes (taller rows
+    // when a node carries dep chips), then outgoing fork stubs.
+    let y = 36; const ys = [];
+    let originY = null;
+    if (p.forkOf && p.directives.length) { originY = y; y += 58; }
+    p.directives.forEach(d => { ys.push(y); y += 58 + ((d.deps && d.deps.length) ? 24 : 0); });
+    const forkRows = state.feed.filter(rec => rec.forkOf && rec.forkOf.projId === p.id).map(rec => {
+      let idx = p.directives.findIndex(d => d.chainHash === rec.forkOf.chainHash);
+      if (idx === -1) idx = p.directives.length - 1;
+      const fy = y; y += 46;
+      return { rec, idx, fy };
+    });
+    const H = y + 6;
+    let svg = "";
+    if (p.directives.length) {
+      // min-width keeps labels legible on narrow screens; .graph-wrap scrolls the rest
+      svg = `<svg viewBox="0 0 ${w} ${H}" width="100%" height="${H}" style="min-width:560px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Project map: chain, forks, dependency tags">`;
+      if (p.directives.length > 1) svg += `<line x1="${cx}" y1="${ys[0]}" x2="${cx}" y2="${ys[ys.length - 1]}" stroke="var(--line)" stroke-width="2"/>`;
+      if (originY !== null) {
+        const lbl = (p.forkOf.mode === "plan" ? "Branched from " : "Adapted from ") + "“" + p.forkOf.title + "”";
+        svg += `<line x1="${cx}" y1="${originY}" x2="${cx}" y2="${ys[0]}" stroke="var(--amber)" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <circle cx="${cx}" cy="${originY}" r="8" fill="none" stroke="var(--amber)" stroke-width="1.5"/>
+          <circle cx="${cx}" cy="${originY}" r="3" fill="var(--amber)"/>
+          <text x="${cx + 22}" y="${originY + 4}" font-family="var(--sans)" font-size="12" font-style="italic" fill="var(--amber)">${esc(lbl.slice(0, 72))}</text>`;
+      }
+      // shared-tag edges: one lane per tag, left of the spine, tag-accent colored
+      allTags.forEach((t, ti) => {
+        const hits = p.directives.map((d, i) => (d.deps || []).includes(t) ? i : -1).filter(i => i !== -1);
+        if (hits.length < 2) return;
+        const lx = cx - 16 - (ti % 4) * 7, col = tagColor(t);
+        svg += `<g class="dep-e dep-e-${ti}"><line x1="${lx}" y1="${ys[hits[0]]}" x2="${lx}" y2="${ys[hits[hits.length - 1]]}" stroke="${col}" stroke-width="1.5"/>`;
+        hits.forEach(i => { svg += `<line x1="${lx}" y1="${ys[i]}" x2="${cx - 9}" y2="${ys[i]}" stroke="${col}" stroke-width="1.5"/>`; });
+        svg += `</g>`;
+      });
+      p.directives.forEach((d, i) => {
+        const ny = ys[i];
+        const color = PHASE_COLOR[d.phase || ""] || PHASE_COLOR[""];
+        const label = (d.prompt || "").slice(0, 58);
+        const branch = d.branch ? "⎇ " + d.branch : "no branch";
+        svg += `<g class="gph-node" onclick="OS.jumpDirective('${d.chainHash.slice(0, 12)}')">
+          <circle cx="${cx}" cy="${ny}" r="9" fill="${color}"/>
+          <circle cx="${cx}" cy="${ny}" r="4" fill="var(--card)"/>
+          <text x="${cx + 22}" y="${ny - 4}" font-family="var(--sans)" font-size="13" font-weight="600" fill="var(--ink)">${i + 1}. ${esc(label)}</text>
+          <text x="${cx + 22}" y="${ny + 13}" font-family="var(--mono)" font-size="10.5" fill="${color}">${d.phase ? d.phase.toUpperCase() + " · " : ""}${esc(branch)}</text>
+        </g>`;
+        if (!isPub) {
+          const sel = state.mapSel === d.chainHash;
+          svg += `<text class="map-sel" x="${w - 74}" y="${ny + 4}" font-family="var(--mono)" font-size="9.5" fill="${sel ? "var(--amber)" : "var(--slate)"}" onclick="OS.mapSelect('${d.chainHash}')">${sel ? "[selected]" : "[select]"}</text>`;
+        }
+        let chipX = cx + 22;
+        (d.deps || []).forEach(t => {
+          const ti = allTags.indexOf(t), col = tagColor(t);
+          const cw = Math.round(t.length * 6.4) + 12;
+          svg += `<g class="map-sel" onmouseenter="OS.hlDep(${ti},1)" onmouseleave="OS.hlDep(${ti},0)">
+            <rect x="${chipX}" y="${ny + 21}" width="${cw}" height="15" rx="2" fill="${col}" fill-opacity=".12" stroke="${col}"/>
+            <text x="${chipX + 6}" y="${ny + 32}" font-family="var(--mono)" font-size="9.5" fill="${col}">${esc(t)}</text></g>`;
+          chipX += cw + 6;
+        });
+      });
+      forkRows.forEach(f => {
+        const ay = ys[f.idx];
+        svg += `<path d="M ${cx} ${ay} C ${cx - 26} ${ay + 20}, ${cx - 26} ${f.fy - 20}, ${cx} ${f.fy}" fill="none" stroke="var(--amber)" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <g class="gph-node" onclick="OS.openPub('${f.rec.id}')">
+            <circle cx="${cx}" cy="${f.fy}" r="7" fill="none" stroke="var(--amber)" stroke-width="1.5"/>
+            <circle cx="${cx}" cy="${f.fy}" r="2.5" fill="var(--amber)"/>
+            <text x="${cx + 20}" y="${f.fy + 4}" font-family="var(--sans)" font-size="12" font-style="italic" fill="var(--amber)">fork: ${esc((f.rec.title || "").slice(0, 56))} · ${esc(f.rec.author || "anon")}</text>
+          </g>`;
+      });
+      svg += `</svg>`;
+    }
+    const usedPhases = [...new Set(p.directives.map(d => d.phase || ""))];
+    const pkgKey = repo ? repo.owner + "/" + repo.repo + "#pkg" : "";
+    const pkg = pkgKey ? state.ghCache[pkgKey] : null;
+    html += `<div class="graph-wrap">
+      <div class="graph-legend">${["planning", "build", "polish", "ship"].filter(ph => usedPhases.includes(ph)).map(ph => `<span><i style="background:${PHASE_COLOR[ph]}"></i>${ph}</span>`).join("")}${usedPhases.includes("") && p.directives.length ? `<span><i style="background:${PHASE_COLOR[""]}"></i>unphased</span>` : ""}${allTags.map(t => `<span><i style="background:${tagColor(t)}"></i>${esc(t)}</span>`).join("")}</div>
+      ${svg || '<div class="empty">No directives yet — the map fills as you chain them.</div>'}
+      ${!isPub && repo ? `<div style="margin-top:12px"><button class="ghost" id="pkg-btn" onclick="OS.loadPkg()">Load package.json</button></div>` : ""}
+      ${!isPub && pkg && pkg.deps && pkg.deps.length ? `<div class="pkg-legend"><span class="eyebrow">package.json deps</span>${pkg.deps.map(n => `<button class="ghost" onclick="OS.tagSelected('${depSan(n)}')">${esc(n)}</button>`).join("")}</div>` : ""}
+      ${!isPub && p.directives.length ? `<div class="hint">Click a node to jump to its directive. Use [select] on a node, then click a dependency above (or add one on the directive card) to tag it — tags stay local and unchained.</div>` : ""}
     </div>`;
     pane.innerHTML = html;
     return;
@@ -631,10 +786,12 @@ function renderPane() {
           ${gh.state === "verified" && gh.url ? `<div class="dir-target">→ verified at commit <a href="${esc(gh.url)}" target="_blank" rel="noopener" class="mono">${short(gh.sha)}</a></div>` : ""}
           ${!isPub ? `<div class="margin-note"><span class="lbl">Margin note — what you learned here (private)</span>
             <textarea id="mn-${d.chainHash.slice(0, 12)}" placeholder="Add a note…" oninput="OS.saveNote('${d.chainHash}', this.value)">${esc(d.note || "")}</textarea></div>` : (d.note ? `<div class="margin-note"><span class="lbl">Margin note</span><div style="font-style:italic;font-size:14px">${esc(d.note)}</div></div>` : "")}
+          ${!isPub ? `<div style="margin-top:8px">${(d.deps || []).map(t => `<span class="dep-chip">${esc(t)}<b onclick="OS.rmDep('${d.chainHash}','${depSan(t)}')" title="remove dep">✕</b></span>`).join("")}<input class="dep-add" placeholder="+ dep, comma to add" spellcheck="false" aria-label="Add dependency tag" onkeydown="OS.depKey('${d.chainHash}',event,this)"></div>` : ""}
           <div class="dir-actions">
             ${p.repoUrl && d.branch ? `<button class="ghost" onclick="OS.verifyBranch('${p.id}',${i})">verify against GitHub</button>` : ""}
             <button class="ghost" onclick="OS.copyDirective('${p.id}',${i})">copy prompt</button>
             <button class="ghost" onclick="OS.permalink('${p.id}','${d.chainHash}')">copy link</button>
+            <button class="ghost" onclick="OS.agentBrief(${i})">brief from here</button>
             ${isPub ? `<button class="amber" onclick="OS.doForkPlan('${p.id}',${i})">branch the plan →</button>` : ""}
           </div>
         </div></div>`;
@@ -658,6 +815,28 @@ function renderPane() {
       <div class="cl-box">${tick}</div><div class="cl-text">${esc(t)}</div></div>`).join("")}
     <div class="cl-progress">${doneCount}/4 cleared${doneCount === 4 ? " — ready to push" : ""}</div>
   </div>`;
+
+  // Staged drafts (scan output): editable, unchained, private — same fields as
+  // the composer. Chaining one goes through the exact appendDirective path.
+  if (!isPub && p.drafts && p.drafts.length) {
+    html += `<div style="margin-top:26px"><div class="eyebrow" style="margin-bottom:10px">Staged drafts (${p.drafts.length})</div>`;
+    for (const dr of p.drafts) {
+      html += `<div class="draft-card">
+        <span class="eyebrow">Staged draft — not chained</span>
+        <div class="grid" style="display:grid;gap:10px">
+          <div class="field"><label>The prompt you'll give your agent</label>
+            <textarea style="min-height:56px;font-family:var(--mono);font-size:12.5px" oninput="OS.updDraft('${dr.id}','prompt',this.value)">${esc(dr.prompt || "")}</textarea></div>
+          <div class="field"><label>Reasoning — why this change</label>
+            <textarea style="min-height:44px" oninput="OS.updDraft('${dr.id}','why',this.value)">${esc(dr.why || "")}</textarea></div>
+          <div class="field"><label>Target branch</label>
+            <div class="branch-row"><input class="mono" value="${esc(dr.branch || "")}" spellcheck="false" oninput="OS.updDraft('${dr.id}','branch',this.value)">
+            <select style="max-width:130px;font-family:var(--sans);font-size:13px" onchange="OS.updDraft('${dr.id}','phase',this.value)"><option value="">no phase</option>${["planning", "build", "polish", "ship"].map(ph => `<option value="${ph}"${dr.phase === ph ? " selected" : ""}>${ph[0].toUpperCase() + ph.slice(1)}</option>`).join("")}</select>
+            <button class="primary" onclick="OS.chainDraft('${dr.id}')">Chain it</button>
+            <button class="ghost" onclick="OS.discardDraft('${dr.id}')">Discard</button></div></div>
+        </div></div>`;
+    }
+    html += `</div>`;
+  }
 
   if (!isPub) {
     html += `<div class="composer"><div class="eyebrow" style="margin-bottom:10px">Log a directive</div><div class="grid">
@@ -695,6 +874,8 @@ const OS = {
     const p = newProject(title, repo); await saveLocal(); closeModal();
     state.view = "project"; state.openId = p.id; state.openIsPub = false; state.paneMode = "directives";
     document.body.classList.add("in-project"); renderAll();
+    // Offer (never force) a scan when a repo came in with the project.
+    if (repo) toast("Repo connected — Scan repo can stage drafts from its branches");
   },
   openLocal: (id) => { state.view = "project"; state.openId = id; state.openIsPub = false; state.paneMode = "directives"; document.body.classList.add("in-project"); renderAll(); window.scrollTo(0, 0); },
   openPub: (id) => { state.view = "project"; state.openId = id; state.openIsPub = true; state.paneMode = "directives"; document.body.classList.add("in-project"); renderAll(); window.scrollTo(0, 0); },
@@ -792,6 +973,9 @@ const OS = {
 
       <p style="font-weight:700;margin-top:14px">Manage a project (archive vs delete)?</p>
       <p><strong>Archive</strong> hides a project from the main list but keeps it — reversible, nothing lost. <strong>Delete</strong> is permanent: localStorage is the only copy and there's no server backup, so the app makes you type the project's name to confirm. Deleting a local draft you already published does not unpublish the sealed record. Keyboard: the wordmark is Home, <span class="mono">Esc</span> or <span class="mono">Alt+←</span> steps back to the ledger, and <span class="mono">j</span>/<span class="mono">k</span> jump between directives inside a project.</p>
+
+      <p style="font-weight:700;margin-top:14px">Scan, Map, Briefs</p>
+      <p><strong>Scan repo</strong> reads a connected repo's branches and recent commits (two API calls, cached ten minutes) and stages them as editable drafts — nothing is chained until you press Chain it on a draft. The <strong>Map</strong> tab draws the chain with its fork lineage and lets you tag directives with dependencies; tags stay local and unchained, and Load package.json can suggest them from the repo itself. <strong>Agent brief</strong> packages the ledger — chain, verification state, open drafts — as paste-ready context for your next AI session, as text or JSON. A brief is derived output only; generating one never touches the chain.</p>
 
       <p style="font-weight:700;margin-top:18px">Git commands — operating a repo properly.</p>
       <p>The chain in this app maps directives to branches. These are the actual commands that make and push the work behind each directive.</p>
@@ -907,6 +1091,211 @@ const OS = {
   },
   copyDirective: (pid, i) => { const p = currentProject(); if (!p) return; copyText(p.directives[i].prompt, "Prompt copied"); },
   permalink: (pid, h) => copyText("opensource://" + pid + "/directive/" + h, "Directive link copied"),
+
+  /* ---- scan repo -> staged drafts (never auto-chained) ---- */
+  scanRepo: async (force) => {
+    const p = currentProject(); if (!p || state.openIsPub) return;
+    const r = parseRepo(p.repoUrl); if (!r) { toast("connect a valid GitHub repo first"); return; }
+    const key = r.owner + "/" + r.repo + "#scan";
+    const cached = state.ghCache[key];
+    if (!force && cached && Date.now() - cached.at < SCAN_TTL) { OS.scanReview(r, cached); return; }
+    const btn = $("scan-btn");
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span>scanning'; }
+    const reset = () => { const b = $("scan-btn"); if (b) { b.disabled = false; b.textContent = "Scan repo"; } };
+    try {
+      // Exactly two requests, bare GETs (see checkBranch on why no headers).
+      const base = "https://api.github.com/repos/" + r.owner + "/" + r.repo;
+      const [bRes, cRes] = await Promise.all([
+        fetch(base + "/branches?per_page=30"),
+        fetch(base + "/commits?per_page=30"),
+      ]);
+      if ([bRes.status, cRes.status].some(s => s === 403 || s === 429)) { toast("GitHub rate limit hit — try again in a bit"); reset(); return; }
+      if (bRes.status === 404 || cRes.status === 404) { toast("repo not found (private or renamed?)"); reset(); return; }
+      if (!bRes.ok || !cRes.ok) { toast("GitHub returned " + (bRes.ok ? cRes.status : bRes.status)); reset(); return; }
+      const data = { at: Date.now(), branches: await bRes.json(), commits: await cRes.json() };
+      state.ghCache[key] = data;
+      reset(); OS.scanReview(r, data);
+    } catch (e) { toast("couldn't reach GitHub (network offline?)"); reset(); }
+  },
+  scanReview: (repo, data) => {
+    const branches = Array.isArray(data.branches) ? data.branches : [];
+    const commits = Array.isArray(data.commits) ? data.commits : [];
+    const msgBySha = {};
+    commits.forEach(c => { if (c && c.sha) msgBySha[c.sha] = ((c.commit && c.commit.message) || "").split("\n")[0]; });
+    // The commits list follows the default branch, so its tip sha identifies it.
+    const tipSha = commits.length ? commits[0].sha : null;
+    const atTip = branches.filter(b => b.commit && b.commit.sha === tipSha);
+    const def = atTip.find(b => b.name === "main" || b.name === "master") || atTip[0]
+      || branches.find(b => b.name === "main" || b.name === "master") || null;
+    const defName = def ? def.name : "";
+    const rows = [];
+    branches.filter(b => b.name !== defName).forEach(b => rows.push({ kind: "branch", branch: b.name, msg: msgBySha[(b.commit && b.commit.sha) || ""] || "", checked: true }));
+    commits.slice(0, 8).forEach(c => rows.push({ kind: "commit", branch: defName, sha: c.sha || "", msg: ((c.commit && c.commit.message) || "").split("\n")[0], checked: false }));
+    state._scanRows = rows;
+    if (!rows.length) { toast("Nothing to stage — the scan found no branches or commits"); return; }
+    const age = Math.round((Date.now() - data.at) / 60000);
+    const row = (x, i) => `<div class="scan-row" onclick="if(event.target.tagName!=='INPUT'){const c=this.querySelector('input');c.checked=!c.checked;OS.scanCount()}">
+      <input type="checkbox" data-i="${i}"${x.checked ? " checked" : ""} onchange="OS.scanCount()" aria-label="Stage ${esc(x.branch || x.sha || "row")}">
+      <div><div class="b">⎇ ${esc(x.branch || "?")}${x.sha ? ` <span class="dim">@ ${esc(x.sha.slice(0, 7))}</span>` : ""}</div>
+      ${x.msg ? `<div class="c">${esc(x.msg.slice(0, 110))}</div>` : ""}</div></div>`;
+    const bRows = rows.map((x, i) => x.kind === "branch" ? row(x, i) : "").join("");
+    const cRows = rows.map((x, i) => x.kind === "commit" ? row(x, i) : "").join("");
+    openModal(`<h3>Scan — ${esc(repo.owner + "/" + repo.repo)}</h3>
+      <p class="dim" style="font-size:12.5px">Everything below stages as an <strong>editable draft</strong> — nothing touches the chain until you chain it yourself.${age >= 1 ? " Results cached " + age + " min ago." : ""}</p>
+      ${bRows ? `<div class="eyebrow" style="margin:10px 0 2px">Branches${defName ? " — default “" + esc(defName) + "” excluded" : ""}</div>` + bRows : `<p class="dim" style="font-style:italic">No non-default branches found.</p>`}
+      ${cRows ? `<div class="eyebrow" style="margin:14px 0 2px">Recent ${esc(defName || "default")} commits (optional)</div>` + cRows : ""}
+      <div class="btns"><button class="ghost" onclick="OS.closeModal();OS.scanRepo(true)">Re-scan</button>
+        <button class="ghost" onclick="OS.closeModal()">Cancel</button>
+        <button class="primary" id="scan-stage" onclick="OS.stageDrafts()">Stage</button></div>`);
+    OS.scanCount();
+  },
+  scanCount: () => {
+    const n = [...document.querySelectorAll("#modal-root input[type=checkbox]")].filter(b => b.checked).length;
+    const btn = $("scan-stage"); if (btn) { btn.textContent = "Stage " + n + " draft" + (n !== 1 ? "s" : ""); btn.disabled = !n; }
+  },
+  stageDrafts: async () => {
+    const p = currentProject(); if (!p || state.openIsPub) { closeModal(); return; }
+    const boxes = [...document.querySelectorAll("#modal-root input[type=checkbox]")];
+    const picked = boxes.filter(b => b.checked).map(b => (state._scanRows || [])[+b.dataset.i]).filter(Boolean);
+    if (!picked.length) { toast("nothing selected"); return; }
+    p.drafts = p.drafts || [];
+    for (const row of picked) {
+      p.drafts.push({
+        id: uid(),
+        prompt: row.kind === "commit"
+          ? "Follow up on commit " + (row.sha || "").slice(0, 7) + (row.msg ? " — " + row.msg : "")
+          : "Implement changes from branch " + row.branch,
+        why: row.msg || "", branch: row.branch || "", phase: "", fromScan: true,
+      });
+    }
+    await saveLocal(); closeModal();
+    toast("Staged " + picked.length + " draft" + (picked.length !== 1 ? "s" : "") + " from repo scan");
+    renderAll();
+  },
+  updDraft: (id, field, value) => {
+    const p = currentProject(); if (!p || state.openIsPub || !p.drafts) return;
+    const dr = p.drafts.find(x => x.id === id); if (!dr) return;
+    dr[field] = value;
+    clearTimeout(OS._dt); OS._dt = setTimeout(() => saveLocal(), 500);
+  },
+  chainDraft: async (id) => {
+    const p = currentProject(); if (!p || state.openIsPub || !p.drafts) return;
+    const dr = p.drafts.find(x => x.id === id); if (!dr) return;
+    const prompt = (dr.prompt || "").trim();
+    if (prompt.length < 5) { toast("write the prompt you actually gave the agent"); return; }
+    const d = await appendDirective(p, prompt, (dr.why || "").trim(), (dr.branch || "").trim());
+    d.phase = dr.phase || ""; // unchained metadata, same as the composer
+    p.drafts = p.drafts.filter(x => x.id !== id);
+    if (p.title === "Untitled project") p.title = prompt.slice(0, 60);
+    await saveLocal(); renderAll();
+    toast("Draft chained" + (d.branch ? " → " + d.branch : ""));
+  },
+  discardDraft: async (id) => {
+    const p = currentProject(); if (!p || state.openIsPub || !p.drafts) return;
+    p.drafts = p.drafts.filter(x => x.id !== id);
+    await saveLocal(); renderPane();
+    toast("Draft discarded — nothing was chained");
+  },
+
+  /* ---- dependency tags (d.deps — unchained metadata, like d.phase) ---- */
+  depKey: (chainH, ev, input) => {
+    if (ev.key !== "," && ev.key !== "Enter") return;
+    ev.preventDefault();
+    const p = currentProject(); if (!p || state.openIsPub) return;
+    const d = p.directives.find(x => x.chainHash === chainH); if (!d) return;
+    d.deps = d.deps || [];
+    const fresh = input.value.split(",").map(s => depSan(s.trim())).filter(t => t && !d.deps.includes(t));
+    input.value = "";
+    if (!fresh.length) return;
+    d.deps.push(...fresh);
+    saveLocal();
+    // insert chips inline so the typing flow isn't broken by a re-render
+    input.insertAdjacentHTML("beforebegin", fresh.map(t => `<span class="dep-chip">${esc(t)}<b onclick="OS.rmDep('${chainH}','${t}')" title="remove dep">✕</b></span>`).join(""));
+  },
+  rmDep: (chainH, tag) => {
+    const p = currentProject(); if (!p || state.openIsPub) return;
+    const d = p.directives.find(x => x.chainHash === chainH); if (!d || !d.deps) return;
+    d.deps = d.deps.filter(t => t !== tag);
+    saveLocal(); renderPane();
+  },
+  mapSelect: (h) => { state.mapSel = state.mapSel === h ? null : h; renderPane(); },
+  hlDep: (i, on) => { document.querySelectorAll(".dep-e-" + i).forEach(el => el.classList.toggle("hl", !!on)); },
+  loadPkg: async () => {
+    const p = currentProject(); if (!p) return;
+    const r = parseRepo(p.repoUrl); if (!r) { toast("connect a GitHub repo first"); return; }
+    const key = r.owner + "/" + r.repo + "#pkg";
+    const cached = state.ghCache[key];
+    if (cached && Date.now() - cached.at < SCAN_TTL) {
+      if (!cached.deps || !cached.deps.length) toast("no package.json dependencies in this repo");
+      renderPane(); return;
+    }
+    const btn = $("pkg-btn");
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span>loading'; }
+    try {
+      const res = await fetch("https://api.github.com/repos/" + r.owner + "/" + r.repo + "/contents/package.json");
+      if (res.status === 404) { state.ghCache[key] = { at: Date.now(), deps: null }; toast("no package.json in this repo"); renderPane(); return; }
+      if (res.status === 403 || res.status === 429) { toast("GitHub rate limit hit — try again in a bit"); renderPane(); return; }
+      if (!res.ok) { toast("GitHub returned " + res.status); renderPane(); return; }
+      const data = await res.json();
+      let pkg;
+      try { pkg = JSON.parse(atob((data.content || "").replace(/\s/g, ""))); }
+      catch (e) { toast("couldn't parse package.json"); renderPane(); return; }
+      const deps = Object.keys((pkg && pkg.dependencies) || {});
+      state.ghCache[key] = { at: Date.now(), deps };
+      if (!deps.length) toast("package.json has no dependencies");
+      renderPane();
+    } catch (e) { toast("couldn't reach GitHub (network offline?)"); renderPane(); }
+  },
+  tagSelected: async (name) => {
+    const p = currentProject(); if (!p || state.openIsPub) return;
+    if (!p.directives.length) { toast("chain a directive first"); return; }
+    const d = p.directives.find(x => x.chainHash === state.mapSel) || p.directives[p.directives.length - 1];
+    d.deps = d.deps || [];
+    if (d.deps.includes(name)) { toast("already tagged on that directive"); return; }
+    d.deps.push(name);
+    await saveLocal(); renderPane();
+    toast("Tagged directive " + (p.directives.indexOf(d) + 1) + " with " + name);
+  },
+
+  /* ---- agent brief (derived output only) ---- */
+  agentBrief: (fromIndex) => {
+    const p = currentProject(); if (!p || !p.directives.length) return;
+    const from = fromIndex || 0;
+    const text = buildBrief(p, from);
+    const r = parseRepo(p.repoUrl);
+    const latestBranch = [...p.directives].map(d => d.branch).filter(Boolean).pop() || "main";
+    OS._brief = {
+      text,
+      json: {
+        kind: "vibe-ledger-agent-brief", version: 1,
+        project: { title: p.title, repoUrl: p.repoUrl || "" },
+        directives: p.directives.slice(from).map(d => {
+          const v = briefVerified(p, d);
+          return { prompt: d.prompt, why: d.reasoning, branch: d.branch, phase: d.phase || "", ghVerified: v.ok, ghSha: v.sha || "" };
+        }),
+        drafts: (p.drafts || []).map(dr => ({ prompt: dr.prompt, why: dr.why, branch: dr.branch, phase: dr.phase || "" })),
+        links: r ? {
+          tree: "https://api.github.com/repos/" + r.owner + "/" + r.repo + "/git/trees/" + latestBranch + "?recursive=1",
+          contents: "https://api.github.com/repos/" + r.owner + "/" + r.repo + "/contents/?ref=" + latestBranch,
+          branch: "https://github.com/" + r.owner + "/" + r.repo + "/tree/" + latestBranch,
+        } : {},
+      },
+    };
+    openModal(`<h3>Agent brief${from ? " — from directive " + (from + 1) : ""}</h3>
+      <p class="dim" style="font-size:12px">Derived output only — generating this never touches the chain. Paste it into your next AI session.</p>
+      <div class="mono-box brief-box">${esc(text)}</div>
+      <div class="btns"><button class="ghost" onclick="OS.exportBriefJSON()">Export JSON</button>
+        <button class="primary" onclick="OS.copyBrief()">Copy brief</button></div>`);
+  },
+  copyBrief: () => { if (OS._brief) copyText(OS._brief.text, "Agent brief copied"); },
+  exportBriefJSON: () => {
+    if (!OS._brief) return;
+    const blob = new Blob([JSON.stringify(OS._brief.json, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "vibe-ledger-agent-brief-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    toast("Agent brief JSON exported");
+  },
 
   confirmPublish: () => {
     const p = currentProject(); if (!p || !p.directives.length) return;
