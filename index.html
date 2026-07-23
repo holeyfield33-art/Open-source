@@ -231,6 +231,7 @@ input.dep-add{font-family:var(--mono); font-size:10.5px; width:160px; padding:2p
 const storage = {
   get: async (k) => { const v = localStorage.getItem(k); return v === null ? null : { value: v }; },
   set: async (k, v) => { localStorage.setItem(k, v); return { key: k }; },
+  remove: async (k) => { localStorage.removeItem(k); return { key: k }; },
   list: async (prefix) => {
     const keys = [];
     for (let i = 0; i < localStorage.length; i++) { const key = localStorage.key(i); if (!prefix || key.startsWith(prefix)) keys.push(key); }
@@ -617,6 +618,7 @@ function renderPane() {
       ${!isPub ? `<button class="ghost" onclick="OS.archive('${p.id}')">${p.archived ? "Unarchive" : "Archive"}</button>` : ""}
       ${!isPub ? `<button class="danger" onclick="OS.confirmDelete('${p.id}')">Delete</button>` : ""}
       ${isPub ? `<button class="amber" onclick="OS.doForkProject('${p.id}')">Adapt this project →</button>` : ""}
+      ${isPub && !p.seed ? `<button class="danger" onclick="OS.confirmDeletePub('${p.id}')">Delete</button>` : ""}
     </div></div>`;
 
   if (p.forkOf) html += `<div class="dir-target" style="margin-top:10px;font-style:italic">
@@ -886,12 +888,12 @@ const OS = {
     toast(p.archived ? "Archived — hidden from the main list, not deleted" : "Unarchived");
     renderAll();
   },
-  // Guarded, permanent deletion of a LOCAL project. Never offered on the seed or
-  // on published records (those aren't in state.local.projects and have no delete UI).
+  // Guarded, permanent deletion of a LOCAL project draft. Published records of the
+  // same project (if any) are untouched here — see confirmDeletePub below.
   confirmDelete: (id) => {
     const p = state.local.projects[id]; if (!p) return;
     const pubNote = p.publishedAt
-      ? `<p class="dim" style="font-size:12px;font-style:italic">Heads up: you already published this project. Deleting this local draft does <strong>not</strong> unpublish the sealed record in your published list — it only removes your editable copy.</p>`
+      ? `<p class="dim" style="font-size:12px;font-style:italic">Heads up: you already published this project. Deleting this local draft does <strong>not</strong> unpublish the sealed record in your published list — it only removes your editable copy. Open the published version and use its own Delete button if you want that gone too.</p>`
       : "";
     openModal(`<h3>Delete “${esc(p.title)}”?</h3>
       <p>Delete permanently? This can't be undone — there's no server backup. localStorage is the only copy.</p>
@@ -915,6 +917,37 @@ const OS = {
     state.local.order = state.local.order.filter(x => x !== id);
     await saveLocal(); closeModal();
     toast("Deleted permanently");
+    OS.goFeed(); renderAll();
+  },
+  // Guarded, permanent deletion of a PUBLISHED record. Never offered on the seed
+  // (that's the one project not yours — see the "Everything is stored in this
+  // browser only" note in the guide). Removes the "proj:" key and, if an editable
+  // local draft of the same project still exists, clears its publishedAt so the
+  // rail correctly shows it as an unpublished draft again.
+  confirmDeletePub: (id) => {
+    const r = state.feed.find(x => x.id === id); if (!r || r.seed) return;
+    openModal(`<h3>Delete “${esc(r.title)}”?</h3>
+      <p>Delete this published record permanently? This can't be undone — there's no server backup, and forks that reference it will show a broken origin link.</p>
+      <div class="field" style="margin-top:12px"><label class="eyebrow">To confirm, type the project name exactly</label>
+        <input id="delp-match" spellcheck="false" autocomplete="off" placeholder="${esc(r.title)}" oninput="OS.delGuardPub('${id}', this.value)"></div>
+      <div class="btns"><button class="ghost" onclick="OS.closeModal()">Cancel</button>
+        <button class="danger" id="delp-confirm" disabled onclick="OS.doDeletePub('${id}')">Delete permanently</button></div>`);
+    setTimeout(() => $("delp-match") && $("delp-match").focus(), 30);
+  },
+  delGuardPub: (id, val) => {
+    const r = state.feed.find(x => x.id === id); const btn = $("delp-confirm");
+    if (!r || !btn) return;
+    btn.disabled = (val !== r.title);
+  },
+  doDeletePub: async (id) => {
+    const r = state.feed.find(x => x.id === id); if (!r) return;
+    await storage.remove("proj:" + id);
+    state.feed = state.feed.filter(x => x.id !== id);
+    delete state.verif[id];
+    const local = state.local.projects[id];
+    if (local) { local.publishedAt = null; await saveLocal(); }
+    closeModal();
+    toast("Published record deleted permanently");
     OS.goFeed(); renderAll();
   },
   jumpDirective: (shortHash) => {
@@ -955,7 +988,7 @@ const OS = {
       <p>Chained + published: prompt, reasoning, branch, hashes, signature. Never published: margin notes, the Notebook, and the ship checklist — private by construction, stripped automatically.</p>
 
       <p style="font-weight:700;margin-top:14px">Manage a project (archive vs delete)?</p>
-      <p><strong>Archive</strong> hides a project from the main list but keeps it — reversible, nothing lost. <strong>Delete</strong> is permanent: localStorage is the only copy and there's no server backup, so the app makes you type the project's name to confirm. Deleting a local draft you already published does not unpublish the sealed record. Keyboard: the wordmark is Home, <span class="mono">Esc</span> or <span class="mono">Alt+←</span> steps back to the ledger, and <span class="mono">j</span>/<span class="mono">k</span> jump between directives inside a project.</p>
+      <p><strong>Archive</strong> hides a project from the main list but keeps it — reversible, nothing lost. <strong>Delete</strong> is permanent: localStorage is the only copy and there's no server backup, so the app makes you type the project's name to confirm. Deleting a local draft does not by itself remove a published record of the same project — open the published version from the ledger and delete it there too if you want it gone entirely (the built-in seed project is the one exception; it isn't yours to delete). Keyboard: the wordmark is Home, <span class="mono">Esc</span> or <span class="mono">Alt+←</span> steps back to the ledger, and <span class="mono">j</span>/<span class="mono">k</span> jump between directives inside a project.</p>
 
       <p style="font-weight:700;margin-top:14px">Scan, Map, Briefs</p>
       <p><strong>Scan repo</strong> reads a connected repo's branches and recent commits (two API calls, cached ten minutes) and stages them as editable drafts — nothing is chained until you press Chain it on a draft. The <strong>Map</strong> tab draws the chain with its fork lineage and lets you tag directives with dependencies; tags stay local and unchained, and Load package.json can suggest them from the repo itself. <strong>Agent brief</strong> packages the ledger — chain, verification state, open drafts — as paste-ready context for your next AI session, as text or JSON. A brief is derived output only; generating one never touches the chain.</p>
