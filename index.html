@@ -3,16 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OPEN SOURCE — a ledger of directives</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Archivo:wght@500;600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<title>OPEN SOURCE — AI change history</title>
 <style>
 :root{
   --paper:#EAEDE9; --ink:#16211C; --seal:#1F5E3A; --amber:#B5651D; --verified:#1F5E3A;
   --slate:#59665E; --wash:#DDE2DA; --line:#C2CABF; --card:#F2F5EF; --danger:#8A2D3B; --danger-wash:#F3E2E4;
-  --serif:"Newsreader", Georgia, serif;
-  --sans:"Archivo", system-ui, sans-serif;
-  --mono:"Spline Sans Mono", ui-monospace, "SF Mono", monospace;
+  --serif:Georgia, "Times New Roman", serif;
+  --sans:system-ui, "Segoe UI", sans-serif;
+  --mono:ui-monospace, Consolas, "SF Mono", monospace;
 }
 *{box-sizing:border-box; margin:0}
 html,body{height:100%}
@@ -184,14 +182,28 @@ input.dep-add{font-family:var(--mono); font-size:10.5px; width:160px; padding:2p
 .dep-e.hl{opacity:1}
 .map-sel{cursor:pointer}
 .brief-box{white-space:pre-wrap; word-break:normal; overflow-wrap:break-word; max-height:52vh; overflow-y:auto; font-size:11.5px; line-height:1.6}
+.review-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:12px 0}
+.review-grid section{min-width:0;border:1px solid var(--line);background:var(--card);padding:12px}
+.review-grid h3{font:700 11px var(--sans);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px}
+.diff{font:12px/1.6 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;margin:8px 0}
+.diff-line{display:block;padding:1px 6px;min-height:1.6em}
+.diff-line.added{background:#E0EBE3;color:#164529}
+.diff-line.removed{background:var(--danger-wash);color:var(--danger)}
+.diff-line.context{color:var(--slate)}
+.commit-pair{font:11px/1.6 var(--mono);overflow-wrap:anywhere;margin:8px 0}
+.code-file{border-top:1px solid var(--line);padding:8px 0;font:12px var(--mono);overflow-wrap:anywhere}
+.code-file summary{cursor:pointer;line-height:1.6}
+.review-grid a{color:var(--seal)}
+.review-status{font:12px/1.5 var(--sans);color:var(--slate);margin:8px 0}
+@media(max-width:1100px){.review-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div id="app">
   <header class="top">
     <div>
-      <div class="wordmark" role="button" tabindex="0" aria-label="Home — return to the ledger" title="Home" onclick="OS.goFeed()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();OS.goFeed()}">OPEN <em>SOURCE</em></div>
-      <div class="tagline">Every directive is a node. Map it to a branch, chain the reasoning — the ledger remembers why.</div>
+      <div class="wordmark" role="button" tabindex="0" aria-label="Home — return to the workspace" title="Home" onclick="OS.goFeed()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();OS.goFeed()}">OPEN <em>SOURCE</em></div>
+      <div class="tagline">DON’T JUST DIFF THE CODE. DIFF THE PROMPTS.</div>
     </div>
     <div class="spacer"></div>
     <button class="ghost" style="margin-right:10px" onclick="OS.guide()">Guide</button>
@@ -207,27 +219,14 @@ input.dep-add{font-family:var(--mono); font-size:10.5px; width:160px; padding:2p
 <div id="toast" role="status"></div>
 
 <script>
-/* =====================================================================
-   OPEN SOURCE — a hash-chained ledger of engineering directives.
-   A directive = { prompt (what you told the agent), reasoning (why),
-   target branch }. Directives chain like Group Chat nodes:
-     content_hash = sha256(canonical(directive_body))
-     chain_hash   = sha256(content_hash || parent_chain_hash)
-   Publishing signs the chain head (ECDSA P-256; Ed25519 is the
-   production target). Verification is FAIL-CLOSED. Branches can be
-   live-checked against GitHub's public API (verify, don't trust).
-   Two fork modes: branch-the-plan (alternative from a point) and
-   clone-the-trail (adapt a whole project). Seeded with ONE real
-   connected project; grows as users drop their own.
-   ===================================================================== */
+/* OPEN SOURCE: prompts, intent, immutable code anchors and local provenance.
+   Static app. Legacy three-field hashes and v2 anchored hashes coexist.
+   ECDSA P-256 signs a local snapshot; it is not a verified developer identity. */
 (() => {
 "use strict";
-/* ---------------- storage (GitHub Pages: localStorage) ----------------
-   No persistent artifact API on Pages; use the browser localStorage instead.
-   Published projects live under "proj:*" keys, personal state under LS_KEY,
-   keypair under KP_KEY. Single origin: the "public ledger" is this browser's
-   published projects. A real multi-user backend is the v2 upgrade; the
-   chain/verify/fork mechanics are identical either way. */
+/* Storage keys remain stable: editable workspace in os-local-v1, sealed
+   snapshots in proj:<id>, extractable local signing key in os-key-v1.
+   Sealing never shares data to a server. Backups include private context. */
 const storage = {
   get: async (k) => { const v = localStorage.getItem(k); return v === null ? null : { value: v }; },
   set: async (k, v) => { localStorage.setItem(k, v); return { key: k }; },
@@ -267,7 +266,20 @@ const $ = (id) => document.getElementById(id);
 const hex = (buf) => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
 async function sha256hex(s) { return hex(await crypto.subtle.digest("SHA-256", enc.encode(s))); }
 /* canonical directive body: stable key order so the hash is deterministic */
-function canonicalBody(d) { return JSON.stringify([d.prompt, d.reasoning, d.branch]); }
+function canonicalBody(d) {
+  if (d.schemaVersion === undefined) {
+    if ('baseCommit' in d || 'resultCommit' in d) throw new Error('Legacy record has unauthenticated commit fields');
+    return JSON.stringify([d.prompt, d.reasoning, d.branch]);
+  }
+  if (d.schemaVersion !== 2) throw new Error('Unsupported change schema');
+  validateAnchors(d.baseCommit, d.resultCommit);
+  return JSON.stringify([2, d.prompt, d.reasoning, d.branch, d.baseCommit, d.resultCommit]);
+}
+function validateAnchors(base, result) {
+  if (base === '' && result === '') return;
+  if (typeof base !== 'string' || !/^[a-f0-9]{40}$/.test(base)) throw new Error('Base commit must be a full 40-character SHA (or leave both commits empty).');
+  if (typeof result !== 'string' || !/^[a-f0-9]{40}$/.test(result)) throw new Error('Result commit must be a full 40-character SHA (or leave both commits empty).');
+}
 async function contentHash(d) { return sha256hex(canonicalBody(d)); }
 async function chainHash(cH, parent) { return sha256hex(cH + parent); }
 
@@ -298,6 +310,7 @@ async function verifySig(pubJwk, s, sigHex) {
   } catch (e) { return false; }
 }
 async function verifyRecord(rec) {
+  try {
   let parent = rec.forkOf ? rec.forkOf.chainHash : GENESIS;
   let chainOk = true;
   for (const d of rec.directives) {
@@ -310,6 +323,7 @@ async function verifyRecord(rec) {
   let sigOk = false;
   if (rec.sig && rec.pubkey) sigOk = await verifySig(rec.pubkey, head, rec.sig);
   return { chainOk, sigOk, head };
+  } catch (e) { return { chainOk: false, sigOk: false, head: '', error: e.message }; }
 }
 
 /* ---------------- state ---------------- */
@@ -321,8 +335,8 @@ const state = {
   kp: null,
 };
 async function saveLocal() {
-  try { await storage.set(LS_KEY, JSON.stringify(state.local)); }
-  catch (e) { toast("Local save failed — storage offline."); console.error(e); }
+  try { await storage.set(LS_KEY, JSON.stringify(state.local)); return true; }
+  catch (e) { toast("Local save failed — storage full or unavailable."); console.error(e); return false; }
 }
 async function loadLocal() {
   try { const r = await storage.get(LS_KEY); if (r && r.value) state.local = JSON.parse(r.value); }
@@ -350,23 +364,21 @@ function forkCount(projId) { return state.feed.filter(r => r.forkOf && r.forkOf.
 
 /* ---------------- github verify (public API, CORS-open) ---------------- */
 function parseRepo(url) {
-  const m = String(url).match(/github\.com[/:]([^/]+)\/([^/#?]+?)(?:\.git)?(?:$|[/#?])/);
+  const m = String(url).match(/^(?:(?:https?:\/\/)?github\.com[/:]|git@github\.com:)([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:$|[/?#])/);
   return m ? { owner: m[1], repo: m[2] } : null;
 }
-async function checkBranch(repoUrl, branch) {
+async function checkBranch(repoUrl, branch, force = false) {
   const r = parseRepo(repoUrl);
   if (!r || !branch) return { state: "unchecked" };
   const cacheKey = r.owner + "/" + r.repo + "@" + branch;
-  if (state.ghCache[cacheKey]) return state.ghCache[cacheKey];
+  if (!force && state.ghCache[cacheKey] && Date.now() - state.ghCache[cacheKey].at < 10 * 60 * 1000) return state.ghCache[cacheKey];
   try {
-    // No custom headers: a bare GET is a CORS "simple request" and skips the
-    // preflight entirely. GitHub's preflight does NOT allow a custom Accept
-    // header, so adding one turns a working call into a blocked one.
+    // Anonymous public API request: no token or custom headers required.
     const res = await fetch("https://api.github.com/repos/" + r.owner + "/" + r.repo + "/branches/" + encodeURIComponent(branch));
     if (res.status === 404) {
       const repoRes = await fetch("https://api.github.com/repos/" + r.owner + "/" + r.repo).catch(() => null);
-      if (repoRes && repoRes.status === 404) { const v = { state: "missing", reason: "repo not found (private or renamed?)" }; state.ghCache[cacheKey] = v; return v; }
-      const v = { state: "missing", reason: "branch '" + branch + "' not found in this repo" }; state.ghCache[cacheKey] = v; return v;
+      if (repoRes && repoRes.status === 404) { const v = { state: "missing", at: Date.now(), reason: "repo not found (private or renamed?)" }; state.ghCache[cacheKey] = v; return v; }
+      const v = { state: "missing", at: Date.now(), reason: "branch '" + branch + "' not found in this repo" }; state.ghCache[cacheKey] = v; return v;
     }
     if (res.status === 403 || res.status === 429) {
       // Unauthenticated GitHub is 60 req/hr per IP. The reset time is in a header.
@@ -377,34 +389,145 @@ async function checkBranch(repoUrl, branch) {
     }
     if (!res.ok) return { state: "unchecked", reason: "GitHub returned " + res.status };
     const data = await res.json();
-    const v = { state: "verified", sha: data.commit && data.commit.sha, url: data.commit && data.commit.html_url };
+    const v = { state: "verified", at: Date.now(), sha: data.commit && data.commit.sha, url: data.commit && data.commit.html_url };
     state.ghCache[cacheKey] = v; return v;
   } catch (e) { return { state: "unchecked", reason: "couldn't reach GitHub (network offline?)" }; }
 }
 
 /* ---------------- project ops ---------------- */
+/* Line diff: exact LCS for ordinary prompts; bounded fallback for very large edits. */
+function promptDiff(previous, current) {
+  const lines = text => text === '' ? [] : String(text).replace(/\r\n?/g, '\n').split('\n');
+  const b = lines(current);
+  if (previous === null) return { initial: true, rows: b.map(text => ({ kind: 'context', text })) };
+  const a = lines(previous), rows = [];
+  let start = 0, end = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) rows.push({ kind: 'context', text: a[start++] });
+  while (end < a.length - start && end < b.length - start && a[a.length - 1 - end] === b[b.length - 1 - end]) end++;
+  const x = a.slice(start, a.length - end), y = b.slice(start, b.length - end);
+  const coarse = x.length * y.length > 1000000;
+  if (coarse) {
+    x.forEach(text => rows.push({ kind: 'removed', text }));
+    y.forEach(text => rows.push({ kind: 'added', text }));
+  } else {
+    const table = Array.from({ length: x.length + 1 }, () => new Uint32Array(y.length + 1));
+    for (let i = x.length - 1; i >= 0; i--) for (let j = y.length - 1; j >= 0; j--) {
+      table[i][j] = x[i] === y[j] ? 1 + table[i + 1][j + 1] : Math.max(table[i + 1][j], table[i][j + 1]);
+    }
+    let i = 0, j = 0;
+    while (i < x.length || j < y.length) {
+      if (i < x.length && j < y.length && x[i] === y[j]) { rows.push({ kind: 'context', text: x[i++] }); j++; }
+      else if (i < x.length && (j === y.length || table[i + 1][j] >= table[i][j + 1])) rows.push({ kind: 'removed', text: x[i++] });
+      else rows.push({ kind: 'added', text: y[j++] });
+    }
+  }
+  a.slice(a.length - end).forEach(text => rows.push({ kind: 'context', text }));
+  return { initial: false, unchanged: previous === current || a.join('\n') === b.join('\n'), coarse, rows };
+}
+function renderPromptDiff(previous, current) {
+  const diff = promptDiff(previous, current);
+  return `<h3>Prompt Diff</h3><p class="review-status">${diff.initial ? 'Initial instruction — no previous prompt.' : diff.unchanged ? 'Prompt unchanged.' : '+ Added · − Removed · Context unchanged'}</p>
+    ${diff.coarse ? '<p class="hint">Large edit: the changed middle is shown as removed and added blocks.</p>' : ''}
+    <div class="diff">${diff.rows.map(r => `<span class="diff-line ${r.kind}">${r.kind === 'added' ? '+' : r.kind === 'removed' ? '−' : ' '} ${esc(r.text)}</span>`).join('') || '<span class="diff-line context">(empty prompt)</span>'}</div>`;
+}
+
+/* Public GitHub compare responses are derived evidence, never provenance fields. */
+const comparisons = new Map();
+let compareBlockedUntil = 0;
+function comparisonKey(repoUrl, base, result) {
+  const r = parseRepo(repoUrl);
+  return r ? `${r.owner.toLowerCase()}/${r.repo.toLowerCase()}@${base}...${result}` : '';
+}
+async function compareCommits(repoUrl, base, result, force = false) {
+  try { validateAnchors(base, result); } catch (e) { return { state: 'error', reason: e.message }; }
+  const r = parseRepo(repoUrl);
+  if (!r || !base || !result) return { state: 'unanchored', reason: 'Connect a public repository and supply both commit SHAs to review code.' };
+  const key = comparisonKey(repoUrl, base, result), cached = comparisons.get(key);
+  if (cached && (cached.pending || (!force && Date.now() < cached.until))) return cached.pending || cached.value;
+  if (Date.now() < compareBlockedUntil) return { state: 'error', reason: 'GitHub rate limit — retry after ' + new Date(compareBlockedUntil).toLocaleTimeString() + '.' };
+  const entry = {};
+  entry.pending = (async () => {
+    let value;
+    try {
+      const api = 'https://api.github.com/repos/' + encodeURIComponent(r.owner) + '/' + encodeURIComponent(r.repo);
+      const res = await fetch(api + '/compare/' + base + '...' + result + '?per_page=1', { signal: AbortSignal.timeout(20000) });
+      if (res.status === 403 || res.status === 429) {
+        const reset = Number(res.headers.get('x-ratelimit-reset')) * 1000;
+        const retry = Number(res.headers.get('retry-after')) * 1000;
+        compareBlockedUntil = Math.max(Date.now() + 60000, reset || 0, Date.now() + retry);
+        throw new Error('GitHub rate limit or access restriction — retry after ' + new Date(compareBlockedUntil).toLocaleTimeString() + '.');
+      }
+      if (res.status === 404 || res.status === 422) throw new Error('Comparison unavailable: check the base SHA, result SHA, and public repository. Neither commit may be private or unreachable.');
+      if (!res.ok) throw new Error('GitHub returned ' + res.status + '. Try again later.');
+      const data = await res.json();
+      if (!data.base_commit || data.base_commit.sha !== base || !Array.isArray(data.files)) throw new Error('GitHub returned an incomplete comparison.');
+      value = { state: 'ready', base, result, status: data.status, mergeBase: data.merge_base_commit && data.merge_base_commit.sha,
+        files: data.files, url: 'https://github.com/' + r.owner + '/' + r.repo + '/compare/' + base + '...' + result };
+    } catch (e) {
+      value = { state: 'error', reason: e.name === 'TimeoutError' || e.name === 'AbortError' ? 'GitHub request timed out. Retry when connected.' : e instanceof TypeError ? 'Could not reach GitHub (network offline?). Retry when connected.' : e.message };
+    }
+    entry.value = value; entry.until = Date.now() + (value.state === 'ready' ? 10 * 60 * 1000 : 30000); delete entry.pending;
+    return value;
+  })();
+  // Bound cache memory; only comparisons are evicted, never user data.
+  if (comparisons.size >= 100) comparisons.delete(comparisons.keys().next().value);
+  comparisons.set(key, entry);
+  return entry.pending;
+}
+function renderComparison(value) {
+  if (value.state !== 'ready') return `<p class="review-status" role="status">${esc(value.reason || 'Loading comparison…')}</p>`;
+  const files = value.files;
+  const additions = files.reduce((n, f) => n + (f.additions || 0), 0), deletions = files.reduce((n, f) => n + (f.deletions || 0), 0);
+  return `<p class="review-status">Commit anchors found on GitHub · ${esc(value.status || 'compared')}<br>${files.length}${files.length >= 300 ? '+' : ''} files listed · +${additions} / −${deletions} in listed files</p>
+    ${value.mergeBase && value.mergeBase !== value.base ? `<p class="review-status">These commits diverge or run backwards. GitHub shows changes from merge base ${esc(value.mergeBase)} to the result, not a direct base-to-result diff.</p>` : ''}
+    ${files.length >= 300 ? '<p class="review-status">GitHub caps comparisons at 300 files; this list may be incomplete.</p>' : ''}
+    <a href="${esc(value.url)}" target="_blank" rel="noopener">Open GitHub comparison ↗</a>
+    ${files.map(f => `<details class="code-file"><summary>${esc(f.filename)} · ${esc(f.status)} · +${f.additions || 0} / −${f.deletions || 0}</summary>
+      ${typeof f.patch === 'string' ? `<pre class="diff">${esc(f.patch)}</pre>` : '<p class="review-status">Patch unavailable (binary, large, or omitted by GitHub). Inspect the file on GitHub.</p>'}</details>`).join('')}
+    ${!files.length ? '<p class="review-status">No changed files returned.</p>' : ''}
+    <p class="hint">API patches may be partial. Anchors identify code states; they do not prove the prompt caused the code.</p>`;
+}
+function codeReview(p, d, i) {
+  const anchors = d.schemaVersion === 2 && d.baseCommit && d.resultCommit;
+  return `<h3>Code Diff</h3>${anchors ? `<div class="commit-pair">Base ${esc(d.baseCommit)}<br>→ Result ${esc(d.resultCommit)}</div>
+    <div id="compare-${i}" data-comparison="${i}"><p class="review-status">Commit anchors recorded · GitHub comparison not yet checked.</p><button class="ghost" onclick="OS.loadComparison(${i})">Load Code Diff</button></div>` : '<p class="review-status">No commit anchors. Branch verification only confirms a branch exists; it does not anchor this change.</p>'}`;
+}
+let comparisonObserver;
+function observeComparisons() {
+  if (comparisonObserver) comparisonObserver.disconnect();
+  if (typeof IntersectionObserver === 'undefined') return;
+  comparisonObserver = new IntersectionObserver(entries => entries.forEach(entry => {
+    if (entry.isIntersecting) { comparisonObserver.unobserve(entry.target); OS.loadComparison(Number(entry.target.dataset.comparison)); }
+  }), { rootMargin: '150px' });
+  document.querySelectorAll('[data-comparison]').forEach(el => comparisonObserver.observe(el));
+}
+
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 function newProject(title, repoUrl, forkOf, ancestry) {
   const p = { id: uid(), title: title || "Untitled project", repoUrl: repoUrl || "", createdAt: Date.now(),
     directives: [], forkOf: forkOf || null, ancestry: ancestry || null, publishedAt: null };
   state.local.projects[p.id] = p; state.local.order.unshift(p.id); return p;
 }
-async function appendDirective(proj, prompt, reasoning, branch) {
+async function appendDirective(proj, prompt, reasoning, branch, baseCommit = '', resultCommit = '') {
+  validateAnchors(baseCommit, resultCommit);
+  if (!(await verifyRecord(proj)).chainOk) throw new Error('Existing provenance is broken; cannot append.');
   const last = proj.directives[proj.directives.length - 1];
   const parent = last ? last.chainHash : (proj.forkOf ? proj.forkOf.chainHash : GENESIS);
-  const body = { prompt, reasoning, branch };
+  const body = { schemaVersion: 2, prompt, reasoning, branch, baseCommit, resultCommit };
   const cH = await contentHash(body);
   const chH = await chainHash(cH, parent);
   const d = { ...body, contentHash: cH, chainHash: chH, ts: Date.now() };
   proj.directives.push(d); return d;
 }
 async function publishProject(proj) {
-  if (!proj.directives.length) throw new Error("add at least one directive before publishing");
+  if (!proj.directives.length) throw new Error("add at least one AI Change before sealing");
+  if (!(await verifyRecord(proj)).chainOk) throw new Error('Provenance verification failed; nothing was sealed.');
   const head = proj.directives[proj.directives.length - 1].chainHash;
   const sig = await signHex(state.kp.priv, head);
-  // Publish only chain-relevant fields. Private notes + journal never leave the device.
+  // Copy core evidence only. Private notes and journal are excluded from seals.
   const publicDirectives = proj.directives.map(d => ({
     prompt: d.prompt, reasoning: d.reasoning, branch: d.branch,
+    ...(d.schemaVersion === 2 ? { schemaVersion: 2, baseCommit: d.baseCommit, resultCommit: d.resultCommit } : {}),
     contentHash: d.contentHash, chainHash: d.chainHash, ts: d.ts,
   }));
   const rec = { id: proj.id, title: proj.title, repoUrl: proj.repoUrl, author: state.local.handle,
@@ -418,19 +541,23 @@ async function publishProject(proj) {
   await storage.set(key, JSON.stringify(rec));
   proj.publishedAt = rec.publishedAt; await saveLocal(); return rec;
 }
+function lineageContext(d) {
+  return { prompt: d.prompt, reasoning: d.reasoning, branch: d.branch,
+    ...(d.schemaVersion === 2 ? { baseCommit: d.baseCommit, resultCommit: d.resultCommit } : {}) };
+}
 /* fork mode A: branch the plan from a directive index (alternative path) */
 function forkPlan(rec, dirIndex) {
   const upto = rec.directives.slice(0, dirIndex + 1);
   const node = rec.directives[dirIndex];
-  const ancestry = (rec.ancestry ? rec.ancestry.slice() : []).concat(upto.map(d => ({ prompt: d.prompt, reasoning: d.reasoning, branch: d.branch })));
-  return newProject("Branch of “" + rec.title + "”", rec.repoUrl,
+  const ancestry = (rec.ancestry ? rec.ancestry.slice() : []).concat(upto.map(lineageContext));
+  return newProject("Alternative to “" + rec.title + "”", rec.repoUrl,
     { projId: rec.id, chainHash: node.chainHash, title: rec.title, author: rec.author || "unknown", mode: "plan" }, ancestry);
 }
 /* fork mode B: clone the whole trail to adapt the project your way */
 function forkProject(rec) {
   const node = rec.directives[rec.directives.length - 1];
-  const ancestry = (rec.ancestry ? rec.ancestry.slice() : []).concat(rec.directives.map(d => ({ prompt: d.prompt, reasoning: d.reasoning, branch: d.branch })));
-  return newProject("Adaptation of “" + rec.title + "”", rec.repoUrl,
+  const ancestry = (rec.ancestry ? rec.ancestry.slice() : []).concat(rec.directives.map(lineageContext));
+  return newProject("Clone of “" + rec.title + "”", rec.repoUrl,
     { projId: rec.id, chainHash: node.chainHash, title: rec.title, author: rec.author || "unknown", mode: "project" }, ancestry);
 }
 
@@ -468,42 +595,54 @@ function closeModal() { $("modal-root").innerHTML = ""; }
 
 /* ---------------- agent brief (derived output — never touches the chain) ---------------- */
 function briefVerified(p, d) {
-  if (d.ghVerified) return { ok: true, sha: d.ghSha };
   const r = parseRepo(p.repoUrl);
   const c = r ? state.ghCache[r.owner + "/" + r.repo + "@" + d.branch] : null;
-  return c && c.state === "verified" ? { ok: true, sha: c.sha } : { ok: false };
+  if (c) return c.state === 'verified' ? { ok: true, sha: c.sha } : { ok: false };
+  return d.ghVerified ? { ok: true, sha: d.ghSha } : { ok: false };
 }
-function buildBrief(p, fromIndex) {
+function buildBrief(p, fromIndex, provenance) {
   const dirs = p.directives.slice(fromIndex || 0);
   const r = parseRepo(p.repoUrl);
   const latestBranch = [...p.directives].map(d => d.branch).filter(Boolean).pop() || "";
   const k = dirs.filter(d => briefVerified(p, d).ok).length;
-  let out = "# Agent brief — " + p.title + "\n";
+  let out = "# Continue with AI — " + p.title + "\n";
   out += "Repo: " + (p.repoUrl || "(none)") + "   Current branch context: " + (latestBranch || "(none)") + "\n";
-  out += "Generated " + new Date().toISOString() + " from the OPEN SOURCE ledger.\n\n";
-  out += "## Directive chain (" + dirs.length + " nodes, verified: " + k + ")\n";
+  out += "Generated " + new Date().toISOString() + " from OPEN SOURCE development history.\n";
+  out += "Provenance: " + (provenance ? (provenance.chainOk ? 'chain intact' : 'FAILED') + (provenance.sigOk ? ', local/device signature valid' : ', no valid current signature') : 'not checked in this output') + "\n\n";
+  out += "## AI Changes (" + dirs.length + " changes, branch observations verified: " + k + ")\n";
   dirs.forEach((d, i) => {
     const v = briefVerified(p, d);
     out += (i + 1) + ". [" + (d.phase || "unphased") + "] " + (d.branch || "no branch") + " — " + d.prompt + "\n";
-    out += "   why: " + (d.reasoning || "(none)") + "   " + (v.ok ? "gh: verified @ " + short(v.sha) : "unverified") + "\n";
+    out += "   intent: " + (d.reasoning || "(none)") + "   " + (v.ok ? "branch observed @ " + short(v.sha) : "branch unverified") + "\n";
+    out += "   commits: " + (d.baseCommit || '(unanchored)') + ' → ' + (d.resultCommit || '(unanchored)') + "\n";
   });
   if (r) {
-    const b = latestBranch || "main";
+    const b = encodeURIComponent(latestBranch || "main");
     out += "\n## Repo API entry points\n";
     out += "- Tree: https://api.github.com/repos/" + r.owner + "/" + r.repo + "/git/trees/" + b + "?recursive=1\n";
     out += "- Contents: https://api.github.com/repos/" + r.owner + "/" + r.repo + "/contents/?ref=" + b + "\n";
     out += "- Branch: https://github.com/" + r.owner + "/" + r.repo + "/tree/" + b + "\n";
   }
   const drafts = p.drafts || [];
-  const qNotes = p.directives.filter(d => d.note && d.note.includes("?")).map(d => d.note.trim());
+  const qNotes = p.directives.filter(d => d.note).map(d => d.note.trim());
   if (drafts.length || qNotes.length) {
     out += "\n## Open threads\n";
-    drafts.forEach(dr => { out += "- planned next: " + (dr.prompt || "").split("\n")[0] + (dr.branch ? " (" + dr.branch + ")" : "") + "\n"; });
-    qNotes.forEach(n => { out += "- question from a margin note: " + n.split("\n")[0] + "\n"; });
+    drafts.forEach(dr => { out += "- planned next: " + (dr.prompt || '(prompt needed)') + (dr.branch ? " (" + dr.branch + ")" : "") + "\n  intent: " + (dr.why || '(none)') + "\n  commits: " + (dr.baseCommit || '(choose base)') + ' → ' + (dr.resultCommit || '(choose result)') + "\n"; });
+    qNotes.forEach(n => { out += "- private developer note (not provenance): " + n + "\n"; });
   }
+  if (p.journal) out += "\n## Private project notes / next work (not provenance)\n" + p.journal + "\n";
   out += "\n## Instruction to the agent\n";
   out += "Continue this project consistent with the chain above. Work on branch " + (latestBranch || "a new feature branch") + ". Keep changes scoped; state assumptions.\n";
   return out;
+}
+async function buildBackup() {
+  const sealed = [];
+  const { keys } = await storage.list('proj:');
+  for (const key of keys) {
+    const item = await storage.get(key);
+    if (item) sealed.push(JSON.parse(item.value));
+  }
+  return { kind: 'vibe-ledger-backup', version: 2, exportedAt: new Date().toISOString(), local: state.local, sealed };
 }
 
 /* ---------------- rendering ---------------- */
@@ -515,15 +654,15 @@ function renderRail() {
   const locals = state.local.order.map(id => state.local.projects[id]).filter(Boolean);
   const activeLocals = locals.filter(p => !p.archived);
   const archivedLocals = locals.filter(p => p.archived);
-  let html = `<div class="rail-head"><span class="eyebrow">Published (this browser)</span>
+  let html = `<div class="rail-head"><span class="eyebrow">Sealed (this browser)</span>
     <button class="ghost" style="padding:3px 8px;font-size:10px" onclick="OS.refresh()">Refresh</button></div>`;
-  if (!pubs.length) html += `<div class="empty">No projects published yet. Start one and publish to seed the ledger.</div>`;
+  if (!pubs.length) html += `<div class="empty">No sealed reviews yet. Connect a repository or open a project to begin.</div>`;
   for (const r of pubs) {
     const v = state.verif[r.id] || {}; const fc = forkCount(r.id);
     html += `<button class="proj-card ${r.seed ? "seed" : "pub"}${activePub(r.id)}" onclick="OS.openPub('${r.id}')">
       <div class="t">${esc(r.title)}</div>
       <div class="m"><span>${esc(r.author || "anon")}</span>
-      <span>${r.directives.length} directive${r.directives.length !== 1 ? "s" : ""}</span>
+      <span>${r.directives.length} AI Change${r.directives.length !== 1 ? "s" : ""}</span>
       ${r.seed ? '<span class="badge seed">SEED</span>' : ""}
       ${r.forkOf ? `<span class="badge fork">${r.forkOf.mode === "plan" ? "BRANCH" : "ADAPTED"}</span>` : ""}
       ${fc ? `<span class="badge fork">${fc} fork${fc > 1 ? "s" : ""}</span>` : ""}
@@ -531,20 +670,20 @@ function renderRail() {
   }
   html += `<div class="rail-head" style="margin-top:22px"><span class="eyebrow">Your projects</span></div>`;
   html += `<button class="primary" style="width:100%;margin-bottom:10px" onclick="OS.startProject()">+ New project</button>`;
-  if (!activeLocals.length) html += `<div class="empty">Private until you publish. Connect a repo, log directives, map each to a branch.</div>`;
+  if (!activeLocals.length) html += `<div class="empty">Stored in this browser. Connect a repo, attach prompts, and review the resulting code.</div>`;
   for (const p of activeLocals) {
     html += `<button class="proj-card local${activeLocal(p.id)}" onclick="OS.openLocal('${p.id}')">
       <div class="t">${esc(p.title)}</div>
-      <div class="m"><span>${p.directives.length} directive${p.directives.length !== 1 ? "s" : ""}</span>
+      <div class="m"><span>${p.directives.length} AI Change${p.directives.length !== 1 ? "s" : ""}</span>
       ${p.forkOf ? `<span class="badge fork">${p.forkOf.mode === "plan" ? "BRANCH" : "ADAPTED"}</span>` : ""}
-      ${p.publishedAt ? '<span style="color:var(--verified)">published</span>' : "<span>draft</span>"}</div></button>`;
+      ${p.publishedAt ? '<span style="color:var(--verified)">sealed</span>' : "<span>draft</span>"}</div></button>`;
   }
   if (archivedLocals.length) {
     html += `<div class="rail-head" style="margin-top:20px"><span class="eyebrow" style="color:var(--slate)">Archived (${archivedLocals.length})</span></div>`;
     for (const p of archivedLocals) {
       html += `<button class="proj-card local${activeLocal(p.id)}" style="opacity:.6" onclick="OS.openLocal('${p.id}')">
         <div class="t">${esc(p.title)} <span class="archived-tag">ARCHIVED</span></div>
-        <div class="m"><span>${p.directives.length} directive${p.directives.length !== 1 ? "s" : ""}</span></div></button>`;
+        <div class="m"><span>${p.directives.length} AI Change${p.directives.length !== 1 ? "s" : ""}</span></div></button>`;
     }
   }
   $("rail").innerHTML = html;
@@ -565,23 +704,27 @@ function renderPane() {
       .filter(x => (x.d.prompt + " " + x.d.reasoning + " " + (x.d.note || "") + " " + (x.d.branch || "")).toLowerCase().includes(q))) : [];
     pane.innerHTML = `
       <div class="eyebrow" style="margin-bottom:6px">Your workspace</div>
-      <h1 class="proj-title" style="max-width:22ch">Every directive, every reason, in front of you.</h1>
+      <h1 class="proj-title" style="max-width:26ch">DON’T JUST DIFF THE CODE. DIFF THE PROMPTS.</h1>
+      <p style="font-size:18px;line-height:1.5;margin:14px 0;max-width:60ch">Git shows what changed. OPEN SOURCE shows the AI instructions and development intent behind those changes.</p>
+      <div class="eyebrow" style="margin:16px 0">Prompt → AI Change → Commit → Review</div>
+      <button class="primary" onclick="OS.startProject()">Connect GitHub Repository</button>
+      <p class="hint">Open an existing project from the sidebar, or create a project manually below.</p>
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin:16px 0">
         <div class="stat-box"><div class="sn">${locals.length}</div><div class="sl">projects</div></div>
-        <div class="stat-box"><div class="sn">${totalDir}</div><div class="sl">directives</div></div>
-        <div class="stat-box"><div class="sn">${state.feed.filter(r => !r.seed).length}</div><div class="sl">published</div></div>
+        <div class="stat-box"><div class="sn">${totalDir}</div><div class="sl">changes</div></div>
+        <div class="stat-box"><div class="sn">${state.feed.filter(r => !r.seed).length}</div><div class="sl">sealed</div></div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
         <input id="search-in" placeholder="Search every prompt, reason, note, branch…" value="${esc(state.search || "")}" oninput="OS.search(this.value)" style="flex:1;min-width:200px">
-        <button class="primary" onclick="OS.startProject()">+ New project</button>
+        <button class="ghost" onclick="OS.startProject()">Create project manually</button>
         <button class="ghost" onclick="OS.exportAll()">Export all</button>
         <button class="ghost" onclick="OS.importPrompt()">Import backup</button>
       </div>
       ${q ? `<div class="eyebrow" style="margin:10px 0 6px">${hits.length} match${hits.length !== 1 ? "es" : ""}</div>
         ${hits.slice(0, 30).map(x => `<button class="proj-card local" onclick="OS.openLocal('${x.p.id}')" style="margin-bottom:8px">
-          <div class="t" style="font-size:14px">${esc(x.p.title)} · directive ${x.i + 1}</div>
+          <div class="t" style="font-size:14px">${esc(x.p.title)} · AI Change ${x.i + 1}</div>
           <div class="m" style="font-family:var(--mono);font-size:11px;color:var(--slate)">${esc((x.d.prompt || "").slice(0, 90))}…</div></button>`).join("") || '<div class="empty">No matches.</div>'}`
-      : `<div class="intro-card"><h4>How this works</h4><p>Each project is a clean linear chain of directives — the prompt, the reasoning, the branch. Add a <strong>margin note</strong> to any directive or open the <strong>Notebook</strong> to write and learn. Fork before a project bloats. Export anytime. Nothing leaves this browser unless you publish.</p></div>`}`;
+      : `<div class="intro-card"><h4>How this works</h4><p>Connect a public repository, detect a code transition, and attach the AI prompt that produced it. Review Prompt Diff beside Code Diff, record your intent, and continue the history. Manual entry is always available. Seal locally and export when needed. Private notes stay outside provenance; workspace backups include them.</p></div>`}`;
     return;
   }
   const p = currentProject();
@@ -590,7 +733,7 @@ function renderPane() {
   const v = isPub ? (state.verif[p.id] || {}) : null;
   const isMine = isPub && !!state.local.projects[p.id];
 
-  let html = `<div class="crumbs"><a href="#" onclick="OS.goFeed();return false">← Ledger</a>`;
+  let html = `<div class="crumbs"><a href="#" onclick="OS.goFeed();return false">← Workspace</a>`;
   if (p.forkOf) {
     const exists = state.feed.some(r => r.id === p.forkOf.projId);
     html += `<span class="sep">/</span>` + (exists
@@ -603,21 +746,21 @@ function renderPane() {
     <h1 class="proj-title${!isPub ? " editable" : ""}" ${!isPub ? `contenteditable="true" spellcheck="false" onblur="OS.retitle(this.textContent)"` : ""}>${esc(p.title)}</h1>
     ${p.repoUrl ? `<div style="margin-top:6px"><a class="repo-link" href="${esc(p.repoUrl)}" target="_blank" rel="noopener">⎇ ${esc(p.repoUrl.replace(/^https?:\/\//, ""))}</a></div>` : ""}
     <div class="proj-sub">
-      <span class="eyebrow">${isPub ? "Published by " + esc(p.author || "anon") : "Private draft"}</span>
+      <span class="eyebrow">${isPub ? "Locally sealed by " + esc(p.author || "anon") : "Private draft"}</span>
       ${isMine ? `<button class="primary" style="margin-left:10px;padding:4px 10px;font-size:11.5px" onclick="OS.openLocal('${p.id}')">Continue this project →</button>` : ""}
       <div class="toggle" role="tablist">
-        <button class="${state.paneMode === "directives" ? "on" : ""}" onclick="OS.setPane('directives')">Directives</button>
-        <button class="${state.paneMode === "chain" ? "on" : ""}" onclick="OS.setPane('chain')">Chain</button>
+        <button class="${state.paneMode === "directives" ? "on" : ""}" onclick="OS.setPane('directives')">Changes</button>
+        <button class="${state.paneMode === "chain" ? "on" : ""}" onclick="OS.setPane('chain')">History</button>
         <button class="${state.paneMode === "map" ? "on" : ""}" onclick="OS.setPane('map')">Map</button>
-        ${!isPub ? `<button class="${state.paneMode === "notebook" ? "on" : ""}" onclick="OS.setPane('notebook')">Notebook</button>` : ""}
+        ${!isPub ? `<button class="${state.paneMode === "notebook" ? "on" : ""}" onclick="OS.setPane('notebook')">Notes</button>` : ""}
       </div>
       ${!isPub ? `<button class="ghost" onclick="OS.editRepo()">${p.repoUrl ? "Change repo" : "Connect repo"}</button>` : ""}
-      ${!isPub && p.repoUrl ? `<button class="ghost" id="scan-btn" onclick="OS.scanRepo()">Scan repo</button>` : ""}
-      ${p.directives.length ? `<button class="amber" onclick="OS.agentBrief()">Agent brief</button>` : ""}
-      ${!isPub && p.directives.length ? `<button class="primary" onclick="OS.confirmPublish()">Publish</button>` : ""}
+      ${!isPub && p.repoUrl ? `<button class="ghost" id="scan-btn" onclick="OS.scanRepo()">Detect Changes</button>` : ""}
+      ${p.directives.length ? `<button class="amber" onclick="OS.agentBrief()">Continue with AI</button>` : ""}
+      ${!isPub && p.directives.length ? `<button class="primary" onclick="OS.confirmPublish()">Seal Review</button>` : ""}
       ${!isPub ? `<button class="ghost" onclick="OS.archive('${p.id}')">${p.archived ? "Unarchive" : "Archive"}</button>` : ""}
       ${!isPub ? `<button class="danger" onclick="OS.confirmDelete('${p.id}')">Delete</button>` : ""}
-      ${isPub ? `<button class="amber" onclick="OS.doForkProject('${p.id}')">Adapt this project →</button>` : ""}
+      ${isPub && v.chainOk && v.sigOk ? `<button class="amber" onclick="OS.doForkProject('${p.id}')">Clone History →</button>` : ""}
       ${isPub && !p.seed ? `<button class="danger" onclick="OS.confirmDeletePub('${p.id}')">Delete</button>` : ""}
     </div></div>`;
 
@@ -628,25 +771,25 @@ function renderPane() {
   if (isPub) {
     const ok = v.chainOk && v.sigOk;
     html += `<div class="verify-banner ${ok ? "ok" : "bad"}">
-      ${ok ? "✓ Chain intact · author signature valid — recomputed just now"
+      ${ok ? "✓ Provenance intact · local/device signature valid — recomputed just now"
            : "✕ VERIFICATION FAILED — " + (v.chainOk ? "signature mismatch" : "hash chain broken") + ". Content collapsed."}</div>`;
     if (!ok) { html += `<div class="collapsed-warning"><div class="eyebrow">Fail-closed</div>
-      <p style="margin-top:8px">This project failed cryptographic verification, so its directives are hidden. The chain was altered after signing, or never honestly signed.</p></div>`;
+      <p style="margin-top:8px">This project failed cryptographic verification, so its AI Changes are hidden. The chain was altered after signing, or the signature is invalid.</p></div>`;
       pane.innerHTML = html; return; }
   }
 
-  if (p.ancestry && p.ancestry.length && !isPub) html += `<div class="dir-target" style="margin:12px 0;font-style:italic">${p.ancestry.length} inherited directive${p.ancestry.length > 1 ? "s" : ""} carried in as lineage — your new directives chain onto the fork point.</div>`;
+  if (p.ancestry && p.ancestry.length && !isPub) html += `<div class="dir-target" style="margin:12px 0;font-style:italic">${p.ancestry.length} inherited AI Change${p.ancestry.length > 1 ? "s" : ""} carried in as lineage — your new changes chain onto the fork point.</div>`;
 
   if (!isPub && p.directives.length >= 15) {
-    html += `<div class="bloat-warn">⚠ ${p.directives.length} directives — this project is getting long.
-      Consider forking a fresh branch from a recent directive to keep each chain focused.
-      <button class="ghost" onclick="OS.setPane('chain')">see the chain</button></div>`;
+    html += `<div class="bloat-warn">⚠ ${p.directives.length} AI Changes — this project is getting long.
+      Consider Try Alternative from a recent sealed change to keep each history focused.
+      <button class="ghost" onclick="OS.setPane('chain')">View History</button></div>`;
   }
 
   if (!isPub && state.paneMode === "notebook") {
     html += `<div class="notebook" style="margin-top:16px">
-      <div class="dir-meta" style="margin-bottom:8px"><span class="dir-n">Notebook</span><span class="private-tag">PRIVATE — never published, never chained</span></div>
-      <textarea id="nb-text" placeholder="Write to learn. What broke, what you'd prompt differently next time, patterns you're seeing across directives — this is your margin, not evidence. It stays on this device and is stripped from anything you publish.">${esc(p.journal || "")}</textarea>
+      <div class="dir-meta" style="margin-bottom:8px"><span class="dir-n">Notes</span><span class="private-tag">PRIVATE — excluded from seals and provenance</span></div>
+      <textarea id="nb-text" placeholder="Write to learn. What broke, what you'd prompt differently next time, patterns across AI Changes — these are private notes. They stay on this device and are excluded from sealed snapshots. Backups and Continue with AI include them.">${esc(p.journal || "")}</textarea>
       <div class="meta"><span>autosaves as you type</span><span id="nb-saved"></span></div>
     </div>`;
     pane.innerHTML = html;
@@ -699,7 +842,7 @@ function renderPane() {
         const ny = ys[i];
         const color = PHASE_COLOR[d.phase || ""] || PHASE_COLOR[""];
         const label = (d.prompt || "").slice(0, 58);
-        const branch = d.branch ? "⎇ " + d.branch : "no branch";
+        const branch = (d.branch ? "⎇ " + d.branch : "no branch") + (d.resultCommit ? " → commit " + short(d.resultCommit) : " · unanchored");
         svg += `<g class="gph-node" onclick="OS.jumpDirective('${d.chainHash.slice(0, 12)}')">
           <circle cx="${cx}" cy="${ny}" r="9" fill="${color}"/>
           <circle cx="${cx}" cy="${ny}" r="4" fill="var(--card)"/>
@@ -736,10 +879,10 @@ function renderPane() {
     const pkg = pkgKey ? state.ghCache[pkgKey] : null;
     html += `<div class="graph-wrap">
       <div class="graph-legend">${["planning", "build", "polish", "ship"].filter(ph => usedPhases.includes(ph)).map(ph => `<span><i style="background:${PHASE_COLOR[ph]}"></i>${ph}</span>`).join("")}${usedPhases.includes("") && p.directives.length ? `<span><i style="background:${PHASE_COLOR[""]}"></i>unphased</span>` : ""}${allTags.map(t => `<span><i style="background:${tagColor(t)}"></i>${esc(t)}</span>`).join("")}</div>
-      ${svg || '<div class="empty">No directives yet — the map fills as you chain them.</div>'}
+      ${svg || '<div class="empty">No AI Changes yet — the map fills as you save them.</div>'}
       ${!isPub && repo ? `<div style="margin-top:12px"><button class="ghost" id="pkg-btn" onclick="OS.loadPkg()">Load package.json</button></div>` : ""}
       ${!isPub && pkg && pkg.deps && pkg.deps.length ? `<div class="pkg-legend"><span class="eyebrow">package.json deps</span>${pkg.deps.map(n => `<button class="ghost" onclick="OS.tagSelected('${depSan(n)}')">${esc(n)}</button>`).join("")}</div>` : ""}
-      ${!isPub && p.directives.length ? `<div class="hint">Click a node to jump to its directive. Use [select] on a node, then click a dependency above (or add one on the directive card) to tag it — tags stay local and unchained.</div>` : ""}
+      ${!isPub && p.directives.length ? `<div class="hint">Click an AI Change → Commit node to open its review. Use [select] on a node, then click a dependency above (or add one on the AI Change card) to tag it — tags stay local and unchained.</div>` : ""}
     </div>`;
     pane.innerHTML = html;
     return;
@@ -750,34 +893,35 @@ function renderPane() {
     const gh = state.ghCache[ghKey] || { state: d.ghVerified ? "verified" : "unchecked", sha: d.ghSha, url: d.ghUrl };
     if (state.paneMode === "chain") {
       html += `<div class="chain-row" id="d-${d.chainHash.slice(0, 12)}">${sealSVG(d.chainHash, true, 38)}
-        <div class="chain-detail"><span class="dir-n">directive ${i + 1}</span>
+        <div class="chain-detail"><span class="dir-n">AI Change ${i + 1}</span>
           <div class="excerpt">${esc(d.prompt.slice(0, 80))}</div>
           <div class="lbl">branch</div><div class="mono">${esc(d.branch || "—")}</div>
+          ${d.schemaVersion === 2 ? `<div class="lbl">commit anchors · v2</div><div class="mono">${esc(d.baseCommit || 'unanchored')} → ${esc(d.resultCommit || 'unanchored')}</div>` : '<div class="lbl">legacy three-field record · no commit anchors</div>'}
           <div class="lbl">content hash</div><div class="mono">${d.contentHash}</div>
-          <div class="lbl">chain hash · sha256(content ∥ parent)</div><div class="mono">${d.chainHash}</div>
+          <div class="lbl">Provenance ID · sha256(content ∥ parent)</div><div class="mono">${d.chainHash}</div>
         </div></div>`;
     } else {
       html += `<div class="dir" id="d-${d.chainHash.slice(0, 12)}">
         <div class="seal-col" title="Provenance seal from this directive's chain hash" onclick="OS.copyHash('${d.chainHash}')">
           ${sealSVG(d.chainHash, true, 38)}${i < p.directives.length - 1 ? '<div class="chain-tail"></div>' : ""}</div>
         <div class="dir-main">
-          <div class="dir-meta"><span class="dir-n">Directive ${i + 1}</span>
+          <div class="dir-meta"><span class="dir-n">AI Change ${i + 1}</span>
             ${d.phase ? `<span class="phase-tag">${esc(d.phase)}</span>` : ""}
             ${d.branch ? `<span class="dir-branch">⎇ ${esc(d.branch)}</span>` : ""}
             <span class="gh-state ${gh.state}" id="gh-${d.chainHash.slice(0, 12)}">${gh.state === "verified" ? "✓ branch exists" : gh.state === "missing" ? "✕ branch not found" : "○ unverified"}</span>
             <span class="mono dim">${short(d.chainHash)}</span></div>
-          <div class="dir-prompt">${esc(d.prompt)}</div>
-          ${d.reasoning ? `<div class="dir-why"><span class="lbl">Reasoning</span>${esc(d.reasoning)}</div>` : ""}
-          ${gh.state === "verified" && gh.url ? `<div class="dir-target">→ verified at commit <a href="${esc(gh.url)}" target="_blank" rel="noopener" class="mono">${short(gh.sha)}</a></div>` : ""}
-          ${!isPub ? `<div class="margin-note"><span class="lbl">Margin note — what you learned here (private)</span>
+          <div class="review-grid"><section>${renderPromptDiff(i ? p.directives[i - 1].prompt : null, d.prompt)}</section><section>${codeReview(p, d, i)}</section></div>
+          ${d.reasoning ? `<div class="dir-why"><span class="lbl">Intent</span>${esc(d.reasoning)}</div>` : ""}
+          ${gh.state === "verified" && gh.url ? `<div class="dir-target">Branch observed at commit (not an anchor): <a href="${esc(gh.url)}" target="_blank" rel="noopener" class="mono">${short(gh.sha)}</a></div>` : ""}
+          ${!isPub ? `<div class="margin-note"><span class="lbl">Private note — what you learned here</span>
             <textarea id="mn-${d.chainHash.slice(0, 12)}" placeholder="Add a note…" oninput="OS.saveNote('${d.chainHash}', this.value)">${esc(d.note || "")}</textarea></div>` : (d.note ? `<div class="margin-note"><span class="lbl">Margin note</span><div style="font-style:italic;font-size:14px">${esc(d.note)}</div></div>` : "")}
           ${!isPub ? `<div style="margin-top:8px">${(d.deps || []).map(t => `<span class="dep-chip">${esc(t)}<b onclick="OS.rmDep('${d.chainHash}','${depSan(t)}')" title="remove dep">✕</b></span>`).join("")}<input class="dep-add" placeholder="+ dep, comma to add" spellcheck="false" aria-label="Add dependency tag" onkeydown="OS.depKey('${d.chainHash}',event,this)"></div>` : ""}
           <div class="dir-actions">
-            ${p.repoUrl && d.branch ? `<button class="ghost" onclick="OS.verifyBranch('${p.id}',${i})">verify against GitHub</button>` : ""}
+            ${p.repoUrl && d.branch ? `<button class="ghost" onclick="OS.verifyBranch('${p.id}',${i})">Verify branch</button>` : ""}
             <button class="ghost" onclick="OS.copyDirective('${p.id}',${i})">copy prompt</button>
             <button class="ghost" onclick="OS.permalink('${p.id}','${d.chainHash}')">copy link</button>
-            <button class="ghost" onclick="OS.agentBrief(${i})">brief from here</button>
-            ${isPub ? `<button class="amber" onclick="OS.doForkPlan('${p.id}',${i})">branch the plan →</button>` : ""}
+            <button class="ghost" onclick="OS.agentBrief(${i})">Continue with AI from here</button>
+            ${isPub ? `<button class="amber" onclick="OS.doForkPlan('${p.id}',${i})">Try Alternative →</button>` : ""}
           </div>
         </div></div>`;
     }
@@ -795,7 +939,7 @@ function renderPane() {
   const tick = `<svg viewBox="0 0 20 20" width="12" height="12"><path d="M4 10l4 4 8-9" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   html += `<div class="checklist">
     <h4>Ship checklist</h4>
-    <div class="cl-sub">${isPub ? "The author's discipline gate for this project." : "Your discipline gate — tap to check. Private, never chained, stripped on publish."}</div>
+    <div class="cl-sub">${isPub ? "The author's discipline gate for this project." : "Your discipline gate — tap to check. Private, never chained, excluded from sealed snapshots."}</div>
     ${CHECK_ITEMS.map((t, i) => `<div class="cl-item ${checks[i] ? "done" : ""}" ${isPub ? "" : `onclick="OS.toggleCheck(${i})"`}>
       <div class="cl-box">${tick}</div><div class="cl-text">${esc(t)}</div></div>`).join("")}
     <div class="cl-progress">${doneCount}/4 cleared${doneCount === 4 ? " — ready to push" : ""}</div>
@@ -809,33 +953,40 @@ function renderPane() {
       html += `<div class="draft-card">
         <span class="eyebrow">Staged draft — not chained</span>
         <div class="grid" style="display:grid;gap:10px">
-          <div class="field"><label>The prompt you'll give your agent</label>
+          <div class="field"><label>The actual prompt that produced this change</label>
             <textarea style="min-height:56px;font-family:var(--mono);font-size:12.5px" oninput="OS.updDraft('${dr.id}','prompt',this.value)">${esc(dr.prompt || "")}</textarea></div>
-          <div class="field"><label>Reasoning — why this change</label>
+          <div class="field"><label>Intent — why this change</label>
             <textarea style="min-height:44px" oninput="OS.updDraft('${dr.id}','why',this.value)">${esc(dr.why || "")}</textarea></div>
           <div class="field"><label>Target branch</label>
             <div class="branch-row"><input class="mono" value="${esc(dr.branch || "")}" spellcheck="false" oninput="OS.updDraft('${dr.id}','branch',this.value)">
             <select style="max-width:130px;font-family:var(--sans);font-size:13px" onchange="OS.updDraft('${dr.id}','phase',this.value)"><option value="">no phase</option>${["planning", "build", "polish", "ship"].map(ph => `<option value="${ph}"${dr.phase === ph ? " selected" : ""}>${ph[0].toUpperCase() + ph.slice(1)}</option>`).join("")}</select>
-            <button class="primary" onclick="OS.chainDraft('${dr.id}')">Chain it</button>
+            <button class="primary" onclick="OS.chainDraft('${dr.id}')">Review &amp; Save</button>
             <button class="ghost" onclick="OS.discardDraft('${dr.id}')">Discard</button></div></div>
+          <div class="field"><label>Base commit SHA</label><input class="mono" aria-label="Draft base commit" value="${esc(dr.baseCommit || '')}" oninput="OS.updDraft('${dr.id}','baseCommit',this.value)"></div>
+          <div class="field"><label>Result commit SHA</label><input class="mono" aria-label="Draft result commit" value="${esc(dr.resultCommit || '')}" oninput="OS.updDraft('${dr.id}','resultCommit',this.value)"></div>
+          ${dr.sourceMessage ? `<p class="hint">Git context (not a prompt): ${esc(dr.sourceMessage)}</p>` : ''}
         </div></div>`;
     }
     html += `</div>`;
   }
 
   if (!isPub) {
-    html += `<div class="composer"><div class="eyebrow" style="margin-bottom:10px">Log a directive</div><div class="grid">
+    html += `<div class="composer"><div class="eyebrow" style="margin-bottom:10px">Record an AI Change</div><div class="grid">
       <div class="field"><label>The prompt you gave your agent</label>
         <textarea id="c-prompt" style="min-height:70px;font-family:var(--mono);font-size:13px" placeholder="e.g. Refactor the auth middleware to reject expired sessions on refresh, add a regression test."></textarea></div>
-      <div class="field"><label>Reasoning — why this change</label>
+      <div class="field"><label>Intent — why this change</label>
         <textarea id="c-why" style="min-height:52px" placeholder="e.g. Sessions weren't being revalidated on token refresh; this closes the hole and locks it with a test."></textarea></div>
       <div class="field"><label>Target branch</label>
         <div class="branch-row"><input id="c-branch" class="mono" placeholder="fix/session-refresh" spellcheck="false">
         <select id="c-phase" style="max-width:130px;font-family:var(--sans);font-size:13px"><option value="">no phase</option><option value="planning">Planning</option><option value="build">Build</option><option value="polish">Polish</option><option value="ship">Ship</option></select>
-        <button class="primary" onclick="OS.addDirective()">Chain it</button></div></div>
-    </div><div class="hint">The prompt + reasoning + branch become one signed node. Map real branches so readers can verify against GitHub.</div></div>`;
+        </div></div>
+      <div class="field"><label for="c-base">Base commit SHA (optional pair)</label><input id="c-base" class="mono" placeholder="Full 40-character SHA before the change" spellcheck="false"></div>
+      <div class="field"><label for="c-result">Result commit SHA</label><input id="c-result" class="mono" placeholder="Full 40-character SHA after the change" spellcheck="false"></div>
+      <div><button class="primary" onclick="OS.addDirective()">Review &amp; Save AI Change</button></div>
+    </div><div class="hint">Save the prompt and intent to provenance. Seal Review later signs the history with a local/device key.</div></div>`;
   }
   pane.innerHTML = html;
+  observeComparisons();
 }
 function renderAll() { renderRail(); renderPane(); }
 function syncBody() { document.body.classList.toggle("in-project", state.view === "project" || state.view === "thread" || (state.view !== "feed")); }
@@ -843,8 +994,59 @@ function syncBody() { document.body.classList.toggle("in-project", state.view ==
 /* ---------------- actions ---------------- */
 const OS = {
   closeModal,
+  loadComparison: async (i, force = false) => {
+    const p = currentProject(), target = $('compare-' + i);
+    if (!p || !target || !p.directives[i]) return;
+    const d = p.directives[i];
+    target.innerHTML = '<p class="review-status" role="status">Loading GitHub comparison…</p>';
+    const value = await compareCommits(p.repoUrl, d.baseCommit, d.resultCommit, force);
+    if ($('compare-' + i) !== target || currentProject() !== p) return;
+    target.innerHTML = renderComparison(value) + (value.state === 'error' ? `<button class="ghost" onclick="OS.loadComparison(${i},true)">Retry Code Diff</button>` : '');
+  },
+  reviewChange: async (p, input, draftId = null) => {
+    const body = { prompt: input.prompt.trim(), reasoning: input.reasoning.trim(), branch: input.branch.trim(),
+      baseCommit: (input.baseCommit || '').trim().toLowerCase(), resultCommit: (input.resultCommit || '').trim().toLowerCase(), phase: input.phase || '' };
+    if (!body.prompt) { toast('Attach the actual AI prompt before saving this change.'); return; }
+    try { validateAnchors(body.baseCommit, body.resultCommit); } catch (e) { toast(e.message); return; }
+    const last = p.directives[p.directives.length - 1];
+    const pending = { project: p, body, draftId, head: last ? last.chainHash : '' };
+    OS._review = pending;
+    openModal(`<h3>Review AI Change</h3><section>${renderPromptDiff(last ? last.prompt : null, body.prompt)}</section>
+      <h3 style="margin-top:14px">Code Diff</h3><div class="commit-pair">${esc(body.baseCommit || 'No base anchor')} → ${esc(body.resultCommit || 'No result anchor')}</div>
+      <div id="preview-code" role="status">${body.baseCommit ? 'Loading GitHub comparison…' : 'Manual change without commit anchors. You can save it and record a new anchored change later.'}</div>
+      <p style="margin-top:12px"><strong>Intent</strong><br>${esc(body.reasoning || '(none supplied)')}</p>
+      <p class="hint">Saving appends the reviewed fields to provenance. Network verification is separate and may be unavailable. Sealing signs the history later.</p>
+      <div class="btns"><button class="ghost" onclick="OS.closeModal()">Back to edit</button><button id="review-save" class="primary" onclick="OS.saveReviewed()">Save AI Change</button></div>`);
+    if (body.baseCommit) {
+      const target = $('preview-code');
+      const value = await compareCommits(p.repoUrl, body.baseCommit, body.resultCommit);
+      if (OS._review === pending && $('preview-code') === target) target.innerHTML = renderComparison(value);
+    }
+  },
+  saveReviewed: async () => {
+    const pending = OS._review;
+    if (!pending || OS._saving || currentProject() !== pending.project || state.openIsPub || !$('review-save')) return;
+    const { project: p, body, draftId } = pending;
+    const last = p.directives[p.directives.length - 1];
+    if ((last ? last.chainHash : '') !== pending.head) { toast('History changed; review this change again.'); return; }
+    OS._saving = true; $('review-save').disabled = true;
+    try {
+      const previousDrafts = p.drafts, previousTitle = p.title;
+      const d = await appendDirective(p, body.prompt, body.reasoning, body.branch, body.baseCommit, body.resultCommit);
+      d.phase = body.phase;
+      if (draftId) p.drafts = p.drafts.filter(dr => dr.id !== draftId);
+      if (p.title === 'Untitled project') p.title = body.prompt.slice(0, 60);
+      if (!(await saveLocal())) {
+        p.directives = p.directives.filter(item => item !== d); p.drafts = previousDrafts; p.title = previousTitle;
+        throw new Error('Change was not saved. Free storage or export a backup, then retry; your draft is still available.');
+      }
+      OS._review = null; closeModal(); renderAll(); toast('AI Change saved to provenance');
+      const saved = $('d-' + d.chainHash.slice(0, 12)); if (saved) saved.scrollIntoView({ block: 'center' });
+    } catch (e) { toast(e.message); if ($('review-save')) $('review-save').disabled = false; }
+    finally { OS._saving = false; }
+  },
   goFeed: () => { state.view = "feed"; state.openId = null; document.body.classList.remove("in-project"); renderAll(); window.scrollTo(0, 0); },
-  refresh: async () => { toast("Refreshing ledger…"); await loadFeed(); renderAll(); },
+  refresh: async () => { toast("Refreshing workspace…"); await loadFeed(); renderAll(); },
   startProject: () => {
     openModal(`<h3>New project</h3>
       <div class="field"><label class="eyebrow">Project name</label><input id="np-title" placeholder="My OSS adaptation" spellcheck="false"></div>
@@ -854,13 +1056,14 @@ const OS = {
   },
   createProject: async () => {
     const title = ($("np-title").value || "").trim() || "Untitled project";
-    const repo = ($("np-repo").value || "").trim();
+    let repo = ($("np-repo").value || "").trim();
     if (repo && !parseRepo(repo)) { toast("that doesn't look like a github.com/owner/name URL"); return; }
+    if (repo) { const r = parseRepo(repo); repo = "https://github.com/" + r.owner + "/" + r.repo; }
     const p = newProject(title, repo); await saveLocal(); closeModal();
     state.view = "project"; state.openId = p.id; state.openIsPub = false; state.paneMode = "directives";
     document.body.classList.add("in-project"); renderAll();
     // Offer (never force) a scan when a repo came in with the project.
-    if (repo) toast("Repo connected — Scan repo can stage drafts from its branches");
+    if (repo) toast("Repo connected — Detect Changes can stage drafts from its branches");
   },
   openLocal: (id) => { state.view = "project"; state.openId = id; state.openIsPub = false; state.paneMode = "directives"; document.body.classList.add("in-project"); renderAll(); window.scrollTo(0, 0); },
   openPub: (id) => { state.view = "project"; state.openId = id; state.openIsPub = true; state.paneMode = "directives"; document.body.classList.add("in-project"); renderAll(); window.scrollTo(0, 0); },
@@ -893,7 +1096,7 @@ const OS = {
   confirmDelete: (id) => {
     const p = state.local.projects[id]; if (!p) return;
     const pubNote = p.publishedAt
-      ? `<p class="dim" style="font-size:12px;font-style:italic">Heads up: you already published this project. Deleting this local draft does <strong>not</strong> unpublish the sealed record in your published list — it only removes your editable copy. Open the published version and use its own Delete button if you want that gone too.</p>`
+      ? `<p class="dim" style="font-size:12px;font-style:italic">You already sealed this project. Deleting this local draft does <strong>not</strong> remove the sealed record in your sealed list — it only removes your editable copy. Open the sealed version and use its own Delete button if you want that gone too.</p>`
       : "";
     openModal(`<h3>Delete “${esc(p.title)}”?</h3>
       <p>Delete permanently? This can't be undone — there's no server backup. localStorage is the only copy.</p>
@@ -927,7 +1130,7 @@ const OS = {
   confirmDeletePub: (id) => {
     const r = state.feed.find(x => x.id === id); if (!r || r.seed) return;
     openModal(`<h3>Delete “${esc(r.title)}”?</h3>
-      <p>Delete this published record permanently? This can't be undone — there's no server backup, and forks that reference it will show a broken origin link.</p>
+      <p>Delete this sealed record permanently? This can't be undone — there's no server backup, and forks that reference it will show a broken origin link.</p>
       <div class="field" style="margin-top:12px"><label class="eyebrow">To confirm, type the project name exactly</label>
         <input id="delp-match" spellcheck="false" autocomplete="off" placeholder="${esc(r.title)}" oninput="OS.delGuardPub('${id}', this.value)"></div>
       <div class="btns"><button class="ghost" onclick="OS.closeModal()">Cancel</button>
@@ -947,7 +1150,7 @@ const OS = {
     const local = state.local.projects[id];
     if (local) { local.publishedAt = null; await saveLocal(); }
     closeModal();
-    toast("Published record deleted permanently");
+    toast("Sealed record deleted permanently");
     OS.goFeed(); renderAll();
   },
   jumpDirective: (shortHash) => {
@@ -969,32 +1172,21 @@ const OS = {
     openModal(`<h3>Guide</h3>
       <div style="max-height:60vh;overflow-y:auto;padding-right:6px">
 
-      <p style="font-weight:700;margin-top:4px">What do I do when a branch won't verify?</p>
-      <p>A red <strong>✕ branch not found</strong> means the check worked and the branch genuinely isn't on GitHub right now. Walk it in order:</p>
-      <p>1. <strong>Typo?</strong> The branch name is case- and slash-sensitive. <span class="mono">Fix/Auth</span> ≠ <span class="mono">fix/auth</span>. Re-log the directive with the exact name.<br>
-      2. <strong>Never pushed?</strong> A local branch that only exists on your machine can't be verified. Push it, then verify.<br>
-      3. <strong>Deleted or merged-and-pruned?</strong> If the branch was merged and deleted, it's gone from GitHub — that's why directive 4's <span class="mono">claude/…-422</span> shows not-found. Point the directive at the commit's permanent home instead: use the <strong>merge commit</strong> or the branch it merged into (usually <span class="mono">main</span>), since the work still lives there.<br>
-      4. <strong>Private or renamed repo?</strong> Verification is public-API only. A private repo reads as "repo not found." Make it public, or accept that private-repo branches stay unverified.<br>
-      5. <strong>Rate-limited?</strong> If the badge says "rate limit hit," GitHub caps anonymous checks at 60/hour per IP. Wait for the reset shown and re-verify.</p>
-      <p class="dim" style="font-style:italic">The honest rule: an unverifiable branch doesn't weaken the chain — the signature still proves your trail wasn't altered. Branch verification is the extra layer that ties a directive to <em>public</em> work. No public branch, no green check, and that's fine for private or squashed history.</p>
-
-      <p style="font-weight:700;margin-top:14px">Where does my work live? Can others see it?</p>
-      <p>Everything is stored in <strong>this browser only</strong> (localStorage). Your projects, notes, journal, and checklists never leave your device. Other people opening this page see only the built-in seed project — never yours, and you never see theirs. "Published" here means "saved to this browser's published section," not shared to a server. Use <strong>Export all</strong> regularly; clearing your browser data wipes everything.</p>
-
-      <p style="font-weight:700;margin-top:14px">Branch the plan vs adapt the project?</p>
-      <p><strong>Branch the plan</strong> forks from one directive to try a different approach from that point. <strong>Adapt the project</strong> clones the whole trail to steer it your way. Both inherit signed lineage showing what they started from.</p>
-
-      <p style="font-weight:700;margin-top:14px">What's private vs public when I publish?</p>
-      <p>Chained + published: prompt, reasoning, branch, hashes, signature. Never published: margin notes, the Notebook, and the ship checklist — private by construction, stripped automatically.</p>
-
-      <p style="font-weight:700;margin-top:14px">Manage a project (archive vs delete)?</p>
-      <p><strong>Archive</strong> hides a project from the main list but keeps it — reversible, nothing lost. <strong>Delete</strong> is permanent: localStorage is the only copy and there's no server backup, so the app makes you type the project's name to confirm. Deleting a local draft does not by itself remove a published record of the same project — open the published version from the ledger and delete it there too if you want it gone entirely (the built-in seed project is the one exception; it isn't yours to delete). Keyboard: the wordmark is Home, <span class="mono">Esc</span> or <span class="mono">Alt+←</span> steps back to the ledger, and <span class="mono">j</span>/<span class="mono">k</span> jump between directives inside a project.</p>
-
-      <p style="font-weight:700;margin-top:14px">Scan, Map, Briefs</p>
-      <p><strong>Scan repo</strong> reads a connected repo's branches and recent commits (two API calls, cached ten minutes) and stages them as editable drafts — nothing is chained until you press Chain it on a draft. The <strong>Map</strong> tab draws the chain with its fork lineage and lets you tag directives with dependencies; tags stay local and unchained, and Load package.json can suggest them from the repo itself. <strong>Agent brief</strong> packages the ledger — chain, verification state, open drafts — as paste-ready context for your next AI session, as text or JSON. A brief is derived output only; generating one never touches the chain.</p>
+      <p><strong>Git shows what changed. OPEN SOURCE shows what you told the AI that caused it.</strong> Record your account of the instruction and its intent beside the resulting Git change.</p>
+      <p><strong>Connect → Detect → Attach → Review → Save.</strong> Connect a public GitHub repository, use Detect Changes or enter commits manually, attach the actual prompt, and review Prompt Diff beside Code Diff. The first prompt is an initial instruction. Later prompts compare with the preceding AI Change.</p>
+      <p><strong>Commit anchors.</strong> Enter both full 40-character SHAs: the base before the change and the result after it. Branch names are optional context. Leave both anchors empty for a manual unanchored change; to add anchors later, record a new AI Change. Saved provenance is immutable.</p>
+      <p><strong>Branch verification is separate.</strong> It checks whether a branch exists at the time of the request. A deleted branch does not invalidate recorded commit anchors. Check spelling or whether the branch was pushed; private repositories cannot be checked without authentication, which this app does not request. Old saved branch observations are historical, not a live guarantee.</p>
+      <p><strong>Code Diff limits.</strong> Comparisons load as cards become visible and cache for ten minutes. GitHub can omit patches for binary or large files and limits comparisons to 300 files. Diverging/backward transitions show a merge-base warning. Offline, invalid SHA, and rate-limit errors leave your local history intact. Retry when connected or after the indicated reset.</p>
+      <p><strong>Detection makes candidates, never prompts.</strong> It samples up to 30 branches and eight recent default-branch commits. Commit candidates use their first parent as the proposed base; check merges carefully. Branch candidates require you to identify the base. Supply the actual AI instruction before saving. A root commit has no parent; choose an appropriate transition or save it unanchored.</p>
+      <p><strong>Seal Review is local.</strong> It verifies the chain, then signs the head with this browser’s key and stores a snapshot here. It does not publish anything online. Resealing explicitly replaces the previous snapshot for that project; export beforehand to retain older snapshots. This is a local/device provenance signature, not verified identity or proof that AI produced the code.</p>
+      <p><strong>Provenance vs private notes.</strong> Prompt, intent, branch and (for new changes) commit SHAs are hashed. Notes, journal, drafts, checklist, phase and dependency tags stay outside the sealed payload. Project title, repository URL and descriptive lineage are context, not authenticated by the head signature. The fork’s parent hash is part of the linked chain.</p>
+      <p><strong>Continue with AI.</strong> Generates text and JSON with prompts, intents, anchors, verification state, open drafts and private notes/next work. Review the included private context before copying it elsewhere. Generating context never alters provenance.</p>
+      <p><strong>Try Alternative</strong> starts at an earlier sealed change; <strong>Clone History</strong> starts at the sealed head. Both preserve the source hash as the parent of your new history. <strong>Map</strong> shows changes, commits, phases, fork lineage and local dependency tags; Load package.json suggests dependencies.</p>
+      <p><strong>Storage and backup.</strong> Everything is browser-local. GitHub operations send only repository/branch/commit requests. No fonts, analytics or AI calls are loaded. Export all includes private workspace data and sealed snapshots, but never the private signing key. Import supports old backups; it merges editable projects by id and restores only absent sealed snapshots. Existing sealed snapshots are kept. Clearing browser data loses the local workspace and signing key.</p>
+      <p><strong>Archive vs Delete.</strong> Archive hides a project reversibly. Delete is permanent and requires its exact name. Editable projects and sealed snapshots have separate Delete actions; built-in examples remain protected. Home, Esc and Alt+← return to the workspace; j/k step between AI Changes while not typing.</p>
 
       <p style="font-weight:700;margin-top:18px">Git commands — operating a repo properly.</p>
-      <p>The chain in this app maps directives to branches. These are the actual commands that make and push the work behind each directive.</p>
+      <p>Use Git to make and commit changes; record their full base/result SHAs here with the prompt and intent.</p>
 
       <p style="font-weight:600;margin-top:10px">Daily loop</p>
       <p><span class="mono">git status</span> — see what changed before you do anything.<br>
@@ -1003,7 +1195,7 @@ const OS = {
       <span class="mono">git push</span> — send commits to GitHub.<br>
       <span class="mono">git pull</span> — get others' (or another machine's) changes before you start.</p>
 
-      <p style="font-weight:600;margin-top:10px">Branches (the unit this app maps to)</p>
+      <p style="font-weight:600;margin-top:10px">Branches (mutable working context)</p>
       <p><span class="mono">git checkout -b feature/thing</span> — create and switch to a new branch.<br>
       <span class="mono">git checkout main</span> — switch back to main.<br>
       <span class="mono">git branch</span> — list local branches; <span class="mono">git branch -a</span> includes remote.<br>
@@ -1026,22 +1218,22 @@ const OS = {
       <p>Put the file at <span class="mono">/docs/index.html</span>, push to <span class="mono">main</span>, then Settings → Pages → Deploy from branch → <span class="mono">main</span> / <span class="mono">/docs</span>.<br>
       After a change: <span class="mono">git add docs/index.html &amp;&amp; git commit -m "update app" &amp;&amp; git push</span> — Pages redeploys in ~1 minute.</p>
 
-      <p class="dim" style="font-style:italic;margin-top:10px">The chain in this app proves your directive trail wasn't altered; these commands are how the actual code behind each directive gets made and pushed.</p>
+      <p class="dim" style="font-style:italic;margin-top:10px">Provenance detects changes to recorded instructions and anchors. It does not prove causation, authorship, code quality, or the accuracy of your account.</p>
 
       </div>
       <div class="btns"><button class="primary" onclick="OS.closeModal()">Got it</button></div>`);
   },
   search: (q) => { state.search = q; if (state.view === "feed") { const pos = document.activeElement === $("search-in"); renderPane(); if (pos) { const el = $("search-in"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } } } },
-  exportAll: () => {
-    const payload = JSON.stringify({ kind: "vibe-ledger-backup", version: 1, exportedAt: new Date().toISOString(), local: state.local }, null, 2);
+  exportAll: async () => {
+    const payload = JSON.stringify(await buildBackup(), null, 2);
     const blob = new Blob([payload], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "vibe-ledger-backup-" + new Date().toISOString().slice(0, 10) + ".json";
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-    toast("Backup exported — all projects, notes, and journals");
+    toast("Backup exported — includes private notes and sealed snapshots; keep it private");
   },
   importPrompt: () => {
-    openModal(`<h3>Import backup</h3><p>Paste a previously exported backup JSON. This <strong>merges</strong> projects into your workspace (existing ones with the same id are overwritten).</p>
+    openModal(`<h3>Import backup</h3><p>Paste a previously exported backup JSON. This <strong>merges</strong> projects into your workspace (editable projects with the same id are overwritten). Sealed snapshots are restored only when their id is absent; existing snapshots are never overwritten by import. Backups contain private notes. Signing keys are not exported.</p>
       <div class="field"><textarea id="imp-json" style="min-height:160px;font-family:var(--mono);font-size:12px" placeholder='{"kind":"vibe-ledger-backup",...}'></textarea></div>
       <div class="btns"><button class="ghost" onclick="OS.closeModal()">Cancel</button><button class="primary" onclick="OS.doImport()">Import &amp; merge</button></div>`);
   },
@@ -1050,21 +1242,36 @@ const OS = {
     let data;
     try { data = JSON.parse(ta.value.trim()); } catch (e) { toast("that isn't valid JSON"); return; }
     if (!data || data.kind !== "vibe-ledger-backup" || !data.local) { toast("not a vibe-ledger backup file"); return; }
+    const incoming = Object.entries(data.local.projects || {});
+    const snapshots = data.sealed || [];
+    if (!Array.isArray(snapshots) || incoming.some(([id, p]) => ["__proto__", "prototype", "constructor"].includes(id) || !/^[a-zA-Z0-9_-]+$/.test(id) || !p || p.id !== id || !Array.isArray(p.directives))) { toast('Invalid backup structure; nothing imported.'); return; }
+    for (const [, p] of incoming) {
+      if (!(await verifyRecord(p)).chainOk) { toast('Backup has invalid provenance; nothing imported.'); return; }
+    }
+    for (const rec of snapshots) {
+      const v = await verifyRecord(rec);
+      if (!rec || ['__proto__', 'prototype', 'constructor'].includes(rec.id) || !/^[a-zA-Z0-9_-]+$/.test(rec.id) || !v.chainOk || !v.sigOk) { toast('Backup contains an invalid sealed snapshot; nothing imported.'); return; }
+    }
+    let restored = 0, skipped = 0;
+    for (const rec of snapshots) {
+      if (await storage.get('proj:' + rec.id)) { skipped++; continue; }
+      await storage.set('proj:' + rec.id, JSON.stringify(rec)); restored++;
+    }
     let merged = 0;
     for (const [id, proj] of Object.entries(data.local.projects || {})) {
       state.local.projects[id] = proj;
       if (!state.local.order.includes(id)) state.local.order.unshift(id);
       merged++;
     }
-    await saveLocal(); closeModal(); toast("Imported " + merged + " project" + (merged !== 1 ? "s" : "")); renderAll();
+    await saveLocal(); await loadFeed(); closeModal(); toast("Imported " + merged + " projects; restored " + restored + " seals; kept " + skipped + " existing seals"); renderAll();
   },
   retitle: (txt) => { const p = currentProject(); if (p && !state.openIsPub) { p.title = txt.trim().slice(0, 120) || "Untitled project"; saveLocal(); renderRail(); } },
-  copyHash: (h) => copyText(h, "Chain hash copied"),
+  copyHash: (h) => copyText(h, "Provenance ID copied"),
   editRepo: () => {
     const p = currentProject(); if (!p || state.openIsPub) return;
     openModal(`<h3>${p.repoUrl ? "Change" : "Connect"} repo</h3>
       <div class="field"><label class="eyebrow">GitHub repo URL</label><input id="er-repo" class="mono" value="${esc(p.repoUrl)}" placeholder="https://github.com/owner/name" spellcheck="false"></div>
-      <p class="dim" style="font-size:12px">Public repos only for verification. The URL lets readers live-check each directive's branch against GitHub.</p>
+      <p class="dim" style="font-size:12px">Public repos only for verification. This URL is used for branch checks and commit comparisons.</p>
       <div class="btns"><button class="ghost" onclick="OS.closeModal()">Cancel</button><button class="primary" onclick="OS.saveRepo()">Save</button></div>`);
     setTimeout(() => $("er-repo") && $("er-repo").focus(), 30);
   },
@@ -1072,33 +1279,26 @@ const OS = {
     const p = currentProject(); if (!p) return;
     const url = ($("er-repo").value || "").trim();
     if (url && !parseRepo(url)) { toast("not a valid github.com/owner/name URL"); return; }
-    p.repoUrl = url; await saveLocal(); closeModal(); renderAll();
+    const r = parseRepo(url); p.repoUrl = r ? "https://github.com/" + r.owner + "/" + r.repo : ""; await saveLocal(); closeModal(); renderAll();
   },
   addDirective: async () => {
     const p = currentProject(); if (!p || state.openIsPub) return;
-    const prompt = ($("c-prompt").value || "").trim();
-    const why = ($("c-why").value || "").trim();
-    const branch = ($("c-branch").value || "").trim();
-    const phase = ($("c-phase") ? $("c-phase").value : "") || "";
-    if (prompt.length < 5) { toast("write the prompt you actually gave the agent"); return; }
-    const d = await appendDirective(p, prompt, why, branch);
-    d.phase = phase; // unchained metadata
-    if (p.title === "Untitled project") p.title = prompt.slice(0, 60);
-    await saveLocal(); renderAll();
-    toast("Directive chained" + (branch ? " → " + branch : ""));
-    const last = p.directives[p.directives.length - 1];
-    const el = document.getElementById("d-" + last.chainHash.slice(0, 12)); if (el) el.scrollIntoView({ block: "center" });
+    return OS.reviewChange(p, { prompt: $('c-prompt').value, reasoning: $('c-why').value,
+      branch: $('c-branch').value, phase: $('c-phase').value,
+      baseCommit: $('c-base').value, resultCommit: $('c-result').value });
   },
   verifyBranch: async (pid, i) => {
     const p = currentProject(); if (!p) return;
+    const isPub = state.openIsPub;
     const d = p.directives[i];
     const badge = $("gh-" + d.chainHash.slice(0, 12));
     if (badge) badge.innerHTML = '<span class="spin"></span>checking';
-    const res = await checkBranch(p.repoUrl, d.branch);
+    const res = await checkBranch(p.repoUrl, d.branch, true);
     if (res.state === "verified") {
-      if (!state.openIsPub) { d.ghVerified = true; d.ghSha = res.sha; d.ghUrl = res.url; await saveLocal(); }
+      if (!isPub) { d.ghVerified = true; d.ghSha = res.sha; d.ghUrl = res.url; await saveLocal(); }
       toast("Verified — branch exists at " + short(res.sha));
     } else if (res.state === "missing") {
+      if (!isPub) { d.ghVerified = false; delete d.ghSha; delete d.ghUrl; await saveLocal(); }
       toast(res.reason || "branch not found");
     } else {
       toast(res.reason || "couldn't verify — try again");
@@ -1106,7 +1306,7 @@ const OS = {
     renderPane();
   },
   copyDirective: (pid, i) => { const p = currentProject(); if (!p) return; copyText(p.directives[i].prompt, "Prompt copied"); },
-  permalink: (pid, h) => copyText("opensource://" + pid + "/directive/" + h, "Directive link copied"),
+  permalink: (pid, h) => copyText("opensource://" + pid + "/directive/" + h, "AI Change link copied"),
 
   /* ---- scan repo -> staged drafts (never auto-chained) ---- */
   scanRepo: async (force) => {
@@ -1117,7 +1317,7 @@ const OS = {
     if (!force && cached && Date.now() - cached.at < SCAN_TTL) { OS.scanReview(r, cached); return; }
     const btn = $("scan-btn");
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span>scanning'; }
-    const reset = () => { const b = $("scan-btn"); if (b) { b.disabled = false; b.textContent = "Scan repo"; } };
+    const reset = () => { const b = $("scan-btn"); if (b) { b.disabled = false; b.textContent = "Detect Changes"; } };
     try {
       // Exactly two requests, bare GETs (see checkBranch on why no headers).
       const base = "https://api.github.com/repos/" + r.owner + "/" + r.repo;
@@ -1145,19 +1345,22 @@ const OS = {
       || branches.find(b => b.name === "main" || b.name === "master") || null;
     const defName = def ? def.name : "";
     const rows = [];
-    branches.filter(b => b.name !== defName).forEach(b => rows.push({ kind: "branch", branch: b.name, msg: msgBySha[(b.commit && b.commit.sha) || ""] || "", checked: true }));
-    commits.slice(0, 8).forEach(c => rows.push({ kind: "commit", branch: defName, sha: c.sha || "", msg: ((c.commit && c.commit.message) || "").split("\n")[0], checked: false }));
+    branches.filter(b => b.name !== defName).forEach(b => rows.push({ kind: "branch", branch: b.name,
+      baseCommit: '', resultCommit: (b.commit && b.commit.sha) || '',
+      msg: msgBySha[(b.commit && b.commit.sha) || ''] || '', checked: false }));
+    commits.slice(0, 8).forEach(c => rows.push({ kind: "commit", branch: defName, baseCommit: c.parents && c.parents[0] ? c.parents[0].sha : "", resultCommit: c.sha || "", sha: c.sha || "", msg: ((c.commit && c.commit.message) || "").split("\n")[0], checked: false }));
     state._scanRows = rows;
     if (!rows.length) { toast("Nothing to stage — the scan found no branches or commits"); return; }
     const age = Math.round((Date.now() - data.at) / 60000);
     const row = (x, i) => `<div class="scan-row" onclick="if(event.target.tagName!=='INPUT'){const c=this.querySelector('input');c.checked=!c.checked;OS.scanCount()}">
       <input type="checkbox" data-i="${i}"${x.checked ? " checked" : ""} onchange="OS.scanCount()" aria-label="Stage ${esc(x.branch || x.sha || "row")}">
       <div><div class="b">⎇ ${esc(x.branch || "?")}${x.sha ? ` <span class="dim">@ ${esc(x.sha.slice(0, 7))}</span>` : ""}</div>
+      <div class="c">${esc(short(x.baseCommit) || 'choose base')} → ${esc(short(x.resultCommit) || 'choose result')}</div>
       ${x.msg ? `<div class="c">${esc(x.msg.slice(0, 110))}</div>` : ""}</div></div>`;
     const bRows = rows.map((x, i) => x.kind === "branch" ? row(x, i) : "").join("");
     const cRows = rows.map((x, i) => x.kind === "commit" ? row(x, i) : "").join("");
-    openModal(`<h3>Scan — ${esc(repo.owner + "/" + repo.repo)}</h3>
-      <p class="dim" style="font-size:12.5px">Everything below stages as an <strong>editable draft</strong> — nothing touches the chain until you chain it yourself.${age >= 1 ? " Results cached " + age + " min ago." : ""}</p>
+    openModal(`<h3>Detect Changes — ${esc(repo.owner + "/" + repo.repo)}</h3>
+      <p class="dim" style="font-size:12.5px">Everything below stages as an <strong>editable draft</strong> — attach the actual prompt, review both diffs, then save it yourself. Commit candidates use the first parent as base (including merges); confirm that transition. Branch candidates need a base SHA. Detection samples the first 30 branches and 8 recent default-branch commits.${age >= 1 ? " Results cached " + age + " min ago." : ""}</p>
       ${bRows ? `<div class="eyebrow" style="margin:10px 0 2px">Branches${defName ? " — default “" + esc(defName) + "” excluded" : ""}</div>` + bRows : `<p class="dim" style="font-style:italic">No non-default branches found.</p>`}
       ${cRows ? `<div class="eyebrow" style="margin:14px 0 2px">Recent ${esc(defName || "default")} commits (optional)</div>` + cRows : ""}
       <div class="btns"><button class="ghost" onclick="OS.closeModal();OS.scanRepo(true)">Re-scan</button>
@@ -1178,10 +1381,9 @@ const OS = {
     for (const row of picked) {
       p.drafts.push({
         id: uid(),
-        prompt: row.kind === "commit"
-          ? "Follow up on commit " + (row.sha || "").slice(0, 7) + (row.msg ? " — " + row.msg : "")
-          : "Implement changes from branch " + row.branch,
-        why: row.msg || "", branch: row.branch || "", phase: "", fromScan: true,
+        prompt: '', why: '', sourceMessage: row.msg || '',
+        baseCommit: row.baseCommit || '', resultCommit: row.resultCommit || '',
+        branch: row.branch || '', phase: '', fromScan: true,
       });
     }
     await saveLocal(); closeModal();
@@ -1197,14 +1399,8 @@ const OS = {
   chainDraft: async (id) => {
     const p = currentProject(); if (!p || state.openIsPub || !p.drafts) return;
     const dr = p.drafts.find(x => x.id === id); if (!dr) return;
-    const prompt = (dr.prompt || "").trim();
-    if (prompt.length < 5) { toast("write the prompt you actually gave the agent"); return; }
-    const d = await appendDirective(p, prompt, (dr.why || "").trim(), (dr.branch || "").trim());
-    d.phase = dr.phase || ""; // unchained metadata, same as the composer
-    p.drafts = p.drafts.filter(x => x.id !== id);
-    if (p.title === "Untitled project") p.title = prompt.slice(0, 60);
-    await saveLocal(); renderAll();
-    toast("Draft chained" + (d.branch ? " → " + d.branch : ""));
+    return OS.reviewChange(p, { prompt: dr.prompt || '', reasoning: dr.why || '',
+      branch: dr.branch || '', phase: dr.phase, baseCommit: dr.baseCommit, resultCommit: dr.resultCommit }, id);
   },
   discardDraft: async (id) => {
     const p = currentProject(); if (!p || state.openIsPub || !p.drafts) return;
@@ -1264,79 +1460,84 @@ const OS = {
   },
   tagSelected: async (name) => {
     const p = currentProject(); if (!p || state.openIsPub) return;
-    if (!p.directives.length) { toast("chain a directive first"); return; }
+    if (!p.directives.length) { toast("save an AI Change first"); return; }
     const d = p.directives.find(x => x.chainHash === state.mapSel) || p.directives[p.directives.length - 1];
     d.deps = d.deps || [];
-    if (d.deps.includes(name)) { toast("already tagged on that directive"); return; }
+    if (d.deps.includes(name)) { toast("already tagged on that AI Change"); return; }
     d.deps.push(name);
     await saveLocal(); renderPane();
-    toast("Tagged directive " + (p.directives.indexOf(d) + 1) + " with " + name);
+    toast("Tagged AI Change " + (p.directives.indexOf(d) + 1) + " with " + name);
   },
 
   /* ---- agent brief (derived output only) ---- */
-  agentBrief: (fromIndex) => {
+  agentBrief: async (fromIndex) => {
     const p = currentProject(); if (!p || !p.directives.length) return;
     const from = fromIndex || 0;
-    const text = buildBrief(p, from);
+    const provenance = await verifyRecord(p);
+    if (!provenance.chainOk || (state.openIsPub && !provenance.sigOk)) { toast("Provenance verification failed; context is unavailable."); return; }
+    const text = buildBrief(p, from, provenance);
     const r = parseRepo(p.repoUrl);
     const latestBranch = [...p.directives].map(d => d.branch).filter(Boolean).pop() || "main";
     OS._brief = {
       text,
       json: {
-        kind: "vibe-ledger-agent-brief", version: 1,
+        kind: "vibe-ledger-agent-brief", version: 2, provenance,
         project: { title: p.title, repoUrl: p.repoUrl || "" },
         directives: p.directives.slice(from).map(d => {
           const v = briefVerified(p, d);
-          return { prompt: d.prompt, why: d.reasoning, branch: d.branch, phase: d.phase || "", ghVerified: v.ok, ghSha: v.sha || "" };
+          return { prompt: d.prompt, why: d.reasoning, branch: d.branch, baseCommit: d.baseCommit || "", resultCommit: d.resultCommit || "", phase: d.phase || "", ghVerified: v.ok, ghSha: v.sha || "" };
         }),
-        drafts: (p.drafts || []).map(dr => ({ prompt: dr.prompt, why: dr.why, branch: dr.branch, phase: dr.phase || "" })),
+        drafts: (p.drafts || []).map(dr => ({ prompt: dr.prompt, why: dr.why, branch: dr.branch, baseCommit: dr.baseCommit || "", resultCommit: dr.resultCommit || "", phase: dr.phase || "" })),
+        privateContext: { notes: p.directives.filter(d => d.note).map(d => d.note), journal: p.journal || "" },
         links: r ? {
-          tree: "https://api.github.com/repos/" + r.owner + "/" + r.repo + "/git/trees/" + latestBranch + "?recursive=1",
-          contents: "https://api.github.com/repos/" + r.owner + "/" + r.repo + "/contents/?ref=" + latestBranch,
-          branch: "https://github.com/" + r.owner + "/" + r.repo + "/tree/" + latestBranch,
+          tree: "https://api.github.com/repos/" + r.owner + "/" + r.repo + "/git/trees/" + encodeURIComponent(latestBranch) + "?recursive=1",
+          contents: "https://api.github.com/repos/" + r.owner + "/" + r.repo + "/contents/?ref=" + encodeURIComponent(latestBranch),
+          branch: "https://github.com/" + r.owner + "/" + r.repo + "/tree/" + encodeURIComponent(latestBranch),
         } : {},
       },
     };
-    openModal(`<h3>Agent brief${from ? " — from directive " + (from + 1) : ""}</h3>
-      <p class="dim" style="font-size:12px">Derived output only — generating this never touches the chain. Paste it into your next AI session.</p>
+    openModal(`<h3>Continue with AI${from ? " — from AI Change " + (from + 1) : ""}</h3>
+      <p class="dim" style="font-size:12px">Derived output only — generating this never touches provenance. This context includes private notes and drafts when available. Review before copying into another AI session or exporting.</p>
       <div class="mono-box brief-box">${esc(text)}</div>
       <div class="btns"><button class="ghost" onclick="OS.exportBriefJSON()">Export JSON</button>
         <button class="primary" onclick="OS.copyBrief()">Copy brief</button></div>`);
   },
-  copyBrief: () => { if (OS._brief) copyText(OS._brief.text, "Agent brief copied"); },
+  copyBrief: () => { if (OS._brief) copyText(OS._brief.text, "Continue with AI copied"); },
   exportBriefJSON: () => {
     if (!OS._brief) return;
     const blob = new Blob([JSON.stringify(OS._brief.json, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "vibe-ledger-agent-brief-" + new Date().toISOString().slice(0, 10) + ".json";
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-    toast("Agent brief JSON exported");
+    toast("Continue with AI JSON exported");
   },
 
   confirmPublish: () => {
     const p = currentProject(); if (!p || !p.directives.length) return;
-    openModal(`<h3>Publish this project?</h3>
-      <p><strong>Publishing is public.</strong> Everyone with this artifact can read your directive trail, verify it, branch a plan, or adapt the whole project. Your handle <span class="mono">${esc(state.local.handle)}</span> and a device signature are attached.</p>
+    openModal(`<h3>Seal this review?</h3>
+      <p><strong>This creates a local sealed snapshot.</strong> It stays in this browser unless you export and share it separately. Your handle <span class="mono">${esc(state.local.handle)}</span> and a device signature are attached.</p>
       <p>Chain head to be signed:</p><div class="mono-box">${p.directives[p.directives.length - 1].chainHash}</div>
-      <p class="dim" style="font-style:italic;font-size:12px">Don't publish secrets or private prompts. Published trails are permanent to readers.</p>
-      <div class="btns"><button class="ghost" onclick="OS.closeModal()">Keep private</button><button class="primary" onclick="OS.publish()">Sign &amp; publish</button></div>`);
+      <p class="dim" style="font-style:italic;font-size:12px">Private notes, journal, drafts and checklist are excluded. Resealing replaces this project’s previous local snapshot; export first if you need to keep it.</p>
+      <div class="btns"><button class="ghost" onclick="OS.closeModal()">Cancel</button><button class="primary" onclick="OS.publish()">Seal Review</button></div>`);
   },
   publish: async () => {
     closeModal(); const p = currentProject(); if (!p) return;
-    try { const rec = await publishProject(p); toast("Published — sealed at " + short(rec.headChain)); await loadFeed(); state.openIsPub = true; state.openId = rec.id; renderAll(); }
-    catch (e) { toast("Publish failed: " + e.message); }
+    try { const rec = await publishProject(p); toast("Review sealed locally at " + short(rec.headChain)); await loadFeed(); state.openIsPub = true; state.openId = rec.id; renderAll(); }
+    catch (e) { toast("Seal failed: " + e.message); }
   },
-  doForkPlan: (pid, i) => {
+  doForkPlan: async (pid, i) => {
     const rec = state.feed.find(r => r.id === pid); if (!rec) return;
+    const v = await verifyRecord(rec); if (!v.chainOk || !v.sigOk) { toast('Cannot fork an unverified sealed history.'); return; }
     const p = forkPlan(rec, i); saveLocal();
     state.view = "project"; state.openId = p.id; state.openIsPub = false; state.paneMode = "directives"; document.body.classList.add("in-project");
-    renderAll(); toast("Branched the plan — your directives chain onto node " + short(rec.directives[i].chainHash));
+    renderAll(); toast("Alternative started — your AI Changes chain onto node " + short(rec.directives[i].chainHash));
   },
-  doForkProject: (pid) => {
+  doForkProject: async (pid) => {
     const rec = state.feed.find(r => r.id === pid); if (!rec) return;
+    const v = await verifyRecord(rec); if (!v.chainOk || !v.sigOk) { toast('Cannot clone an unverified sealed history.'); return; }
     const p = forkProject(rec); saveLocal();
     state.view = "project"; state.openId = p.id; state.openIsPub = false; state.paneMode = "directives"; document.body.classList.add("in-project");
-    renderAll(); toast("Adapted the project — the whole trail is now yours to steer");
+    renderAll(); toast("History cloned — the source provenance is preserved");
   },
   setHandle: async (v) => { state.local.handle = (v || "").trim().slice(0, 24) || state.local.handle; $("handle").value = state.local.handle; await saveLocal(); },
 };
@@ -1406,7 +1607,7 @@ async function seedIfNeeded() {
 
 /* ---------------- boot ---------------- */
 (async function boot() {
-  $("pane").innerHTML = `<div class="empty">Opening the ledger — loading keys, projects, and the public feed…</div>`;
+  $("pane").innerHTML = `<div class="empty">Opening your workspace — loading local keys, projects, and sealed reviews…</div>`;
   await loadLocal();
   state.kp = await loadOrCreateKeypair();
   if (!state.local.handle) { const pkh = await sha256hex(JSON.stringify(state.kp.pubJwk)); state.local.handle = "dev-" + pkh.slice(0, 6); await saveLocal(); }

@@ -1,0 +1,12 @@
+{
+  "name": "open-source-review-tests",
+  "private": true,
+  "scripts": {
+    "test": "node tests/legacy.cjs && node --test tests/refactor.test.cjs",
+    "test:browser": "node tests/browser.cjs",
+    "test:github": "node tests/github-live.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
