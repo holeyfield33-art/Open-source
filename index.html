@@ -1605,6 +1605,90 @@ async function seedIfNeeded() {
   }
 }
 
+const ALL_REPOS_SEED = [
+  { title: "vibe-explainer", repo: "https://github.com/holeyfield33-art/vibe-explainer" },
+  { title: "project-eclipse", repo: "https://github.com/holeyfield33-art/project-eclipse" },
+  { title: "agent-security-index", repo: "https://github.com/holeyfield33-art/agent-security-index" },
+  { title: "Asi-Research-v2", repo: "https://github.com/holeyfield33-art/Asi-Research-v2" },
+  { title: "Block-Wise", repo: "https://github.com/holeyfield33-art/Block-Wise" },
+  { title: "autonomous-digital-resident", repo: "https://github.com/holeyfield33-art/autonomous-digital-resident" },
+  { title: "aletheia-redteam-kit", repo: "https://github.com/holeyfield33-art/aletheia-redteam-kit" },
+  { title: "Horos", repo: "https://github.com/holeyfield33-art/Horos" },
+  { title: "descend", repo: "https://github.com/holeyfield33-art/descend" },
+  { title: "mrn-crs", repo: "https://github.com/holeyfield33-art/mrn-crs" },
+  { title: "Mneme-", repo: "https://github.com/holeyfield33-art/Mneme-" },
+  { title: "runtime-firewall-mvp", repo: "https://github.com/holeyfield33-art/runtime-firewall-mvp" },
+  { title: "helios", repo: "https://github.com/holeyfield33-art/helios" },
+  { title: "clip-trace", repo: "https://github.com/holeyfield33-art/clip-trace" },
+  { title: "x-algorithm-knowledge-base", repo: "https://github.com/holeyfield33-art/x-algorithm-knowledge-base" },
+  { title: "ai-boundary-security-experiment", repo: "https://github.com/holeyfield33-art/ai-boundary-security-experiment" },
+  { title: "SurfaceTrace", repo: "https://github.com/holeyfield33-art/SurfaceTrace" },
+  { title: "Open-source", repo: "https://github.com/holeyfield33-art/Open-source" },
+  { title: "ASI-Research-v1", repo: "https://github.com/holeyfield33-art/ASI-Research-v1" },
+  { title: "Insideai", repo: "https://github.com/holeyfield33-art/Insideai" },
+  { title: "repo-specialization-framework", repo: "https://github.com/holeyfield33-art/repo-specialization-framework" },
+  { title: "vibe-course", repo: "https://github.com/holeyfield33-art/vibe-course" },
+  { title: "ATG", repo: "https://github.com/holeyfield33-art/ATG" },
+  { title: "unitarity-lab", repo: "https://github.com/holeyfield33-art/unitarity-lab" },
+  { title: "VAR", repo: "https://github.com/holeyfield33-art/VAR" },
+  { title: "aegis-provenance", repo: "https://github.com/holeyfield33-art/aegis-provenance" },
+  { title: "pg65-search", repo: "https://github.com/holeyfield33-art/pg65-search" },
+  { title: "Aletheia-Lite", repo: "https://github.com/holeyfield33-art/Aletheia-Lite" },
+  { title: "Unitarity-Labs", repo: "https://github.com/holeyfield33-art/Unitarity-Labs" },
+  { title: "beal-hunter", repo: "https://github.com/holeyfield33-art/beal-hunter" },
+  { title: "rr-lab", repo: "https://github.com/holeyfield33-art/rr-lab" },
+  { title: "vibe-check", repo: "https://github.com/holeyfield33-art/vibe-check" },
+  { title: "aletheia-core", repo: "https://github.com/holeyfield33-art/aletheia-core" },
+  { title: "glyph-protocol", repo: "https://github.com/holeyfield33-art/glyph-protocol" },
+  { title: "aletheia-sentinel", repo: "https://github.com/holeyfield33-art/aletheia-sentinel" },
+  { title: "cpp-tutorial", repo: "https://github.com/holeyfield33-art/cpp-tutorial" },
+  { title: "js-tutorial", repo: "https://github.com/holeyfield33-art/js-tutorial" },
+  { title: "Lie-Detector", repo: "https://github.com/holeyfield33-art/Lie-Detector" },
+  { title: "Graph-Tutorial", repo: "https://github.com/holeyfield33-art/Graph-Tutorial" },
+  { title: "Lampad", repo: "https://github.com/holeyfield33-art/Lampad" },
+  { title: "aletheia-mcp-test", repo: "https://github.com/holeyfield33-art/aletheia-mcp-test" },
+  { title: "Site-Forge-MCP", repo: "https://github.com/holeyfield33-art/Site-Forge-MCP" },
+  { title: "Aletheia-portfolio-auditor", repo: "https://github.com/holeyfield33-art/Aletheia-portfolio-auditor" },
+  { title: "Revenue-forge", repo: "https://github.com/holeyfield33-art/Revenue-forge" },
+  { title: "bug-free-disco", repo: "https://github.com/holeyfield33-art/bug-free-disco" },
+  { title: "geometric-brain-mcp", repo: "https://github.com/holeyfield33-art/geometric-brain-mcp" },
+  { title: "aletheia-core-hub", repo: "https://github.com/holeyfield33-art/aletheia-core-hub" },
+  { title: "spectral-discipline", repo: "https://github.com/holeyfield33-art/spectral-discipline" },
+  { title: "Holeyfield33-art", repo: "https://github.com/holeyfield33-art/Holeyfield33-art" },
+  { title: "aletheia--core", repo: "https://github.com/holeyfield33-art/aletheia--core" },
+  { title: "geometric-brain", repo: "https://github.com/holeyfield33-art/geometric-brain" },
+  { title: "Omni", repo: "https://github.com/holeyfield33-art/Omni" },
+  { title: "operation-fast-cash", repo: "https://github.com/holeyfield33-art/operation-fast-cash" },
+  { title: "rh-solution", repo: "https://github.com/holeyfield33-art/rh-solution" },
+  { title: "context-vault", repo: "https://github.com/holeyfield33-art/context-vault" },
+  { title: "pin-up-ai", repo: "https://github.com/holeyfield33-art/pin-up-ai" },
+  { title: "Agent-x-ray", repo: "https://github.com/holeyfield33-art/Agent-x-ray" },
+  { title: "Total-recall-", repo: "https://github.com/holeyfield33-art/Total-recall-" },
+  { title: "Kdp-", repo: "https://github.com/holeyfield33-art/Kdp-" },
+  { title: "qreatestudiosv1", repo: "https://github.com/holeyfield33-art/qreatestudiosv1" },
+  { title: "ai-starter-template", repo: "https://github.com/holeyfield33-art/ai-starter-template" },
+  { title: "Facefirst", repo: "https://github.com/holeyfield33-art/Facefirst" },
+  { title: "Trivia", repo: "https://github.com/holeyfield33-art/Trivia" },
+];
+
+async function seedAllReposIfNeeded() {
+  // Portfolio seed: one connected draft per public repo, created once per
+  // browser so every project is present and ready for "Detect Changes".
+  // No directives are invented -- each draft starts empty, matching the rule
+  // that detection never fabricates prompts. Non-destructive: repos already
+  // present (by URL) are skipped, and projects the user deleted are not
+  // re-added (the one-time reposSeeded flag guards that).
+  if (state.local.reposSeeded) { return; }
+  const norm = (u) => (u || "").toLowerCase().replace(/\.git$/, "").replace(/\/$/, "");
+  const have = new Set(Object.values(state.local.projects).map(p => norm(p.repoUrl)));
+  for (const r of ALL_REPOS_SEED) {
+    if (have.has(norm(r.repo))) { continue; }
+    newProject(r.title, r.repo);
+  }
+  state.local.reposSeeded = true;
+  await saveLocal();
+}
+
 /* ---------------- boot ---------------- */
 (async function boot() {
   $("pane").innerHTML = `<div class="empty">Opening your workspace — loading local keys, projects, and sealed reviews…</div>`;
@@ -1637,6 +1721,7 @@ async function seedIfNeeded() {
     }
   });
   await seedIfNeeded();
+  await seedAllReposIfNeeded();
   await loadFeed();
   renderAll();
 })();
